@@ -993,7 +993,7 @@ expire_storage()
     while(st) {
         int i = 0;
         while(i < st->numpeers) {
-            if(st->peers[i].time < now.tv_sec - 35 * 60) {
+            if(st->peers[i].time < now.tv_sec - 32 * 60) {
                 if(i != st->numpeers - 1)
                     st->peers[i] = st->peers[st->numpeers - 1];
                 st->numpeers--;
