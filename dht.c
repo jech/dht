@@ -215,6 +215,10 @@ static struct timeval now;
 static time_t mybucket_grow_time;
 static time_t expire_stuff_time;
 
+#define MAX_LEAKY_BUCKET_TOKENS 40
+static time_t leaky_bucket_time;
+static int leaky_bucket_tokens;
+
 FILE *dht_debug = NULL;
 
 #ifdef __GNUC__
@@ -1259,6 +1263,9 @@ dht_init(int s, const unsigned char *id)
 
     next_blacklisted = 0;
 
+    leaky_bucket_time = now.tv_sec;
+    leaky_bucket_tokens = MAX_LEAKY_BUCKET_TOKENS;
+
     memset(secret, 0, sizeof(secret));
     rotate_secrets();
     expire_buckets(s);
@@ -1290,6 +1297,24 @@ dht_uninit(int s, int dofree)
         free(st);
     }
     
+    return 1;
+}
+
+/* Rate control for requests we receive. */
+
+static int
+leaky_bucket()
+{
+    if(leaky_bucket_tokens == 0) {
+        leaky_bucket_tokens = MIN(MAX_LEAKY_BUCKET_TOKENS,
+                                  2 * (now.tv_sec - leaky_bucket_time));
+        leaky_bucket_time = now.tv_sec;
+    }
+
+    if(leaky_bucket_tokens == 0)
+        return 0;
+
+    leaky_bucket_tokens--;
     return 1;
 }
 
@@ -1348,6 +1373,14 @@ dht_periodic(int s, int available, time_t *tosleep,
         if(id_cmp(id, myid) == 0) {
             debugf("Received message from self.\n");
             goto dontread;
+        }
+
+        if(message > REPLY) {
+            /* Rate limit requests. */
+            if(!leaky_bucket()) {
+                debugf("Dropping request due to rate limiting.\n");
+                goto dontread;
+            }
         }
 
         switch(message) {
