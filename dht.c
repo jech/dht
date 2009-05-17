@@ -1260,21 +1260,18 @@ dht_uninit(int s, int dofree)
         return 1;
 
     while(buckets) {
-        struct bucket *b;
-        while(buckets->nodes) {
-            struct node *n;
-            n = buckets->nodes;
-            buckets->nodes = n->next;
+        struct bucket *b = buckets;
+        buckets = b->next;
+        while(b->nodes) {
+            struct node *n = b->nodes;
+            b->nodes = n->next;
             free(n);
         }
-        b = buckets->next;
-        buckets = b->next;
         free(b);
     }
 
     while(storage) {
-        struct storage *st;
-        st = storage;
+        struct storage *st = storage;
         storage = storage->next;
         free(st->peers);
         free(st);
