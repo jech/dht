@@ -1415,7 +1415,7 @@ dht_periodic(int s, int available, time_t *tosleep,
         switch(message) {
         case REPLY:
             if(tid_len != 4) {
-                debugf("Broken node truncates search ids: ");
+                debugf("Broken node truncates transaction ids: ");
                 debug_printable(buf, rc);
                 printf("\n");
                 /* This is really annoying, as it means that we will
