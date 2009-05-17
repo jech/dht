@@ -386,7 +386,7 @@ bucket_middle(struct bucket *b, unsigned char *id_return)
 {
     int bit1 = lowbit(b->first);
     int bit2 = b->next ? lowbit(b->next->first) : -1;
-    int bit = (bit1 >= bit2 ? bit1 : bit2) + 1;
+    int bit = MAX(bit1, bit2) + 1;
 
     if(bit >= 160)
         return -1;
@@ -402,7 +402,7 @@ bucket_random(struct bucket *b, unsigned char *id_return)
 {
     int bit1 = lowbit(b->first);
     int bit2 = b->next ? lowbit(b->next->first) : -1;
-    int bit = (bit1 >= bit2 ? bit1 : bit2) + 1;
+    int bit = MAX(bit1, bit2) + 1;
     int i;
 
     if(bit >= 160) {
