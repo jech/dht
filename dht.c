@@ -444,6 +444,30 @@ node_good(struct node *node)
         node->time >= now.tv_sec - 900;
 }
 
+/* Our transaction-ids are 4-bytes long, with the first two bytes identi-
+   fying the kind of request, and the remaining two a sequence number in
+   host order. */
+
+static void
+make_tid(unsigned char *tid_return, const char *prefix, unsigned short seqno)
+{
+    tid_return[0] = prefix[0] & 0xFF;
+    tid_return[1] = prefix[1] & 0xFF;
+    memcpy(tid_return + 2, &seqno, 2);
+}
+
+static int
+tid_match(const unsigned char *tid, const char *prefix,
+          unsigned short *seqno_return)
+{
+    if(tid[0] == (prefix[0] & 0xFF) && tid[1] == (prefix[1] & 0xFF)) {
+        if(seqno_return)
+            memcpy(seqno_return, tid + 2, 2);
+        return 1;
+    } else
+        return 0;
+}
+
 /* Every bucket caches the address of a likely node.  Ping it. */
 static int
 send_cached_ping(int s, struct bucket *b)
@@ -451,10 +475,12 @@ send_cached_ping(int s, struct bucket *b)
     int rc;
     /* We set family to 0 when there's no cached node. */
     if(b->cached.sin_family == AF_INET) {
+        unsigned char tid[4];
         debugf("Sending ping to cached node.\n");
+        make_tid(tid, "pn", 0);
         rc = send_ping(s, (struct sockaddr*)&b->cached,
                        sizeof(struct sockaddr_in),
-                       (unsigned char*)"pn", 2);
+                       tid, 4);
         b->cached.sin_family = 0;
         return rc;
     }
@@ -570,11 +596,13 @@ new_node(int s, const unsigned char *id, struct sockaddr_in *sin,
             if(!node_good(n)) {
                 dubious = 1;
                 if(n->pinged_time < now.tv_sec - 15) {
+                    unsigned char tid[4];
                     debugf("Sending ping to dubious node.\n");
+                    make_tid(tid, "pn", 0);
                     send_ping(s,
                               (struct sockaddr*)&n->sin,
                               sizeof(struct sockaddr_in),
-                              (unsigned char*)"pn", 2);
+                              tid, 4);
                     n->pinged++;
                     n->pinged_time = now.tv_sec;
                     break;
@@ -758,7 +786,7 @@ search_send_get_peers(int s, struct search *sr, struct search_node *n)
         return 0;
 
     debugf("Sending get_peers.\n");
-    tid[0] = 'g'; tid[1] = 'p'; memcpy(tid + 2, &sr->tid, 2);
+    make_tid(tid, "gp", sr->tid);
     send_get_peers(s, (struct sockaddr*)&n->sin,
                    sizeof(struct sockaddr_in),
                    tid, 4, sr->id, sr->tid,
@@ -800,7 +828,7 @@ search_step(int s, struct search *sr, dht_callback *callback, void *closure)
                 if(n->pinged < 3 && !n->acked) {
                     all_acked = 0;
                     debugf("Sending announce_peer.\n");
-                    tid[0] = 'a'; tid[1] = 'p'; memcpy(tid + 2, &sr->tid, 2);
+                    make_tid(tid, "ap", sr->tid);
                     send_announce_peer(s,
                                        (struct sockaddr*)&n->sin,
                                        sizeof(struct sockaddr_in),
@@ -1335,6 +1363,7 @@ dht_periodic(int s, int available, time_t *tosleep,
         int values_len = 2048;
         struct sockaddr_in source;
         socklen_t source_len = sizeof(struct sockaddr_in);
+        unsigned short ttid;
 
         rc = recvfrom(s, buf, 1024, 0,
                       (struct sockaddr*)&source, &source_len);
@@ -1385,17 +1414,23 @@ dht_periodic(int s, int available, time_t *tosleep,
 
         switch(message) {
         case REPLY:
-            if(tid_len == 2 && memcmp(tid, "pn", 2) == 0) {
+            if(tid_len != 4) {
+                debugf("Broken node truncates search ids.\n");
+                /* This is really annoying, as it means that we will
+                   time-out all our searches that go through this node.
+                   Kill it. */
+                broken_node(s, id, &source);
+                goto dontread;
+            }
+            if(tid_match(tid, "pn", NULL)) {
                 debugf("Pong!\n");
                 new_node(s, id, &source, 2);
-            } else if((tid_len == 2 && memcmp(tid, "fn", 2) == 0) ||
-                      (tid_len == 4 && memcmp(tid, "gp", 2) == 0)) {
+            } else if(tid_match(tid, "fn", NULL) ||
+                      tid_match(tid, "gp", NULL)) {
                 int gp = 0;
                 struct search *sr = NULL;
-                if(tid_len == 4 && memcmp(tid, "gp", 2) == 0) {
-                    unsigned short ttid;
+                if(tid_match(tid, "gp", &ttid)) {
                     gp = 1;
-                    memcpy(&ttid, tid + 2, 2);
                     sr = find_search(ttid);
                 }
                 debugf("Nodes found (%d)%s!\n", nodes_len / 26,
@@ -1440,11 +1475,9 @@ dht_periodic(int s, int available, time_t *tosleep,
                         }
                     }
                 }
-            } else if(tid_len == 4 && memcmp(tid, "ap", 2) == 0) {
+            } else if(tid_match(tid, "ap", &ttid)) {
                 struct search *sr;
-                unsigned short ttid;
                 debugf("Got reply to announce_peer.\n");
-                memcpy(&ttid, tid + 2, 2);
                 sr = find_search(ttid);
                 if(!sr) {
                     debugf("Unknown search!");
@@ -1461,14 +1494,6 @@ dht_periodic(int s, int available, time_t *tosleep,
                     /* See comment for gp above. */
                     search_send_get_peers(s, sr, NULL);
                 }
-            } else if(tid_len == 2 &&
-                      (memcmp(tid, "gp", 2) == 0 ||
-                       memcmp(tid, "ap", 2) == 0)) {
-                debugf("Broken node truncates search ids.\n");
-                /* This is really annoying, as it means that we will
-                   time-out all our searches that go through this node.
-                   Kill it. */
-                broken_node(s, id, &source);
             } else {
                 debugf("Unexpected reply: ");
                 debug_printable(buf, rc);
@@ -1621,11 +1646,13 @@ dht_periodic(int s, int available, time_t *tosleep,
                 if(q) {
                     n = random_node(q);
                     if(n) {
+                        unsigned char tid[4];
                         debugf("Sending find_node "
                                "for bucket maintenance.\n");
+                        make_tid(tid, "fn", 0);
                         send_find_node(s, (struct sockaddr*)&n->sin,
                                        sizeof(struct sockaddr_in),
-                                       (unsigned char*)"fn", 2, id,
+                                       tid, 4, id,
                                        n->reply_time >= now.tv_sec - 15);
                         pinged(s, n, q);
                         /* In order to avoid sending queries back-to-back,
@@ -1660,11 +1687,13 @@ dht_periodic(int s, int available, time_t *tosleep,
             if(q) {
                 n = random_node(q);
                 if(n) {
+                    unsigned char tid[4];
                     debugf("Sending find_node "
                            "for neighborhood maintenance.\n");
+                    make_tid(tid, "fn", 0);
                     send_find_node(s, (struct sockaddr*)&n->sin,
                                    sizeof(struct sockaddr_in),
-                                   (unsigned char*)"fn", 2, id,
+                                   tid, 4, id,
                                    n->reply_time >= now.tv_sec - 15);
                     pinged(s, n, q);
                 }
@@ -1746,9 +1775,11 @@ dht_insert_node(int s, const unsigned char *id, struct sockaddr_in *sin)
 int
 dht_ping_node(int s, struct sockaddr_in *sin)
 {
+    unsigned char tid[4];
     debugf("Sending ping.\n");
+    make_tid(tid, "pn", 0);
     return send_ping(s, (struct sockaddr*)sin, sizeof(struct sockaddr_in),
-                     (unsigned char*)"pn", 2);
+                     tid, 4);
 }
 
 /* We could use a proper bencoding printer and parser, but the format of
