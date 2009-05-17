@@ -971,7 +971,7 @@ storage_store(const unsigned char *id, const unsigned char *ip,
             struct peer *new_peers;
             if(st->maxpeers > DHT_MAX_PEERS / 2)
                 return 0;
-            int n = st->maxpeers == 0 ? 16 : 2 * st->maxpeers;
+            int n = st->maxpeers == 0 ? 2 : 2 * st->maxpeers;
             new_peers = realloc(st->peers, n * sizeof(struct peer));
             if(new_peers == NULL)
                 return -1;
