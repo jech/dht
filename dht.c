@@ -68,6 +68,9 @@ THE SOFTWARE.
 #define restrict /**/
 #endif
 
+#define MAX(x, y) ((x) >= (y) ? (x) : (y))
+#define MIN(x, y) ((x) <= (y) ? (x) : (y))
+
 struct node {
     unsigned char id[20];
     struct sockaddr_in sin;
