@@ -1415,7 +1415,9 @@ dht_periodic(int s, int available, time_t *tosleep,
         switch(message) {
         case REPLY:
             if(tid_len != 4) {
-                debugf("Broken node truncates search ids.\n");
+                debugf("Broken node truncates search ids: ");
+                debug_printable(buf, rc);
+                printf("\n");
                 /* This is really annoying, as it means that we will
                    time-out all our searches that go through this node.
                    Kill it. */
@@ -1540,6 +1542,7 @@ dht_periodic(int s, int available, time_t *tosleep,
                     n0 = MIN(st->numpeers - i0, 50);
                     n1 = n0 >= 50 ? 0 : MIN(50, i0);
 
+                    debugf("Sending found peers (%d).\n", n0 + n1);
                     send_peers_found(s, (struct sockaddr*)&source,
                                      sizeof(source), tid, tid_len,
                                      st->peers + i0, n0,
