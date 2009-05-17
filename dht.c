@@ -2042,16 +2042,18 @@ parse_message(const unsigned char *buf, int buflen,
 {
     const unsigned char *p;
 
-    p = memmem(buf, buflen, "1:t", 3);
-    if(p) {
-        long l;
-        char *q;
-        l = strtol((char*)p + 3, &q, 10);
+    if(tid_return) {
+        p = memmem(buf, buflen, "1:t", 3);
+        if(p) {
+            long l;
+            char *q;
+            l = strtol((char*)p + 3, &q, 10);
             if(q && *q == ':' && l > 0 && l < *tid_len) {
                 memcpy(tid_return, q + 1, l);
                 *tid_len = l;
             } else
                 *tid_len = 0;
+        }
     }
     if(id_return) {
         p = memmem(buf, buflen, "2:id20:", 7);
