@@ -1101,17 +1101,21 @@ token_match(unsigned char *token, int token_len,
 }
 
 int
-dht_nodes(int *good_return, int *dubious_return, int *cached_return)
+dht_nodes(int *good_return, int *dubious_return, int *cached_return,
+          int *incoming_return)
 {
-    int good = 0, dubious = 0, cached = 0;
+    int good = 0, dubious = 0, cached = 0, incoming = 0;
     struct bucket *b = buckets;
     while(b) {
         struct node *n = b->nodes;
         while(n) {
-            if(node_good(n))
+            if(node_good(n)) {
                 good++;
-            else
+                if(n->time > n->reply_time)
+                    incoming++;
+            } else {
                 dubious++;
+            }
             n = n->next;
         }
         if(b->cached.sin_family == AF_INET)
@@ -1124,6 +1128,8 @@ dht_nodes(int *good_return, int *dubious_return, int *cached_return)
         *dubious_return = dubious;
     if(cached_return)
         *cached_return = cached;
+    if(incoming_return)
+        *incoming_return = cached;
     return good + dubious;
 }
                 

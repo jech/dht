@@ -38,7 +38,8 @@ int dht_periodic(int s, int available, time_t *tosleep,
                  dht_callback *callback, void *closure);
 int dht_search(int s, const unsigned char *id, int port,
                dht_callback *callback, void *closure);
-int dht_nodes(int *good_return, int *dubious_return, int *cached_return);
+int dht_nodes(int *good_return, int *dubious_return, int *cached_return,
+              int *incoming_return);
 void dht_dump_tables(FILE *f);
 int dht_get_nodes(struct sockaddr_in *sins, int num);
 int dht_uninit(int s, int dofree);
