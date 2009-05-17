@@ -1,7 +1,7 @@
 unreleased: dht-0.3
 
-  * Fixed a bug in send_peers_found, and changed it to spread the load more
-    uniformly.
+  * Fixed a number of incorrectly formatted messages.
+  * Changed reply to find_peers to spread the load more uniformly.
   * Fixed a bug that could cause premature splitting.
   * Implemented rate limiting.
   * Changed some time constants to be less chatty.
