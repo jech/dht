@@ -1896,9 +1896,9 @@ send_peers_found(int s, struct sockaddr *sa, int salen,
     COPY(buf, i, token, token_len, 1400);
     rc = snprintf(buf + i, 1400 - i, "6:valuesl"); INC(i, rc, 1400);
     for(j = 0; j < numpeers; j++) {
-        unsigned short swapped = htons(peers[i].port);
+        unsigned short swapped = htons(peers[j].port);
         rc = snprintf(buf + i, 1400 - i, "6:"); INC(i, rc, 1400);
-        COPY(buf, i, peers[i].ip, 4, 1400);
+        COPY(buf, i, peers[j].ip, 4, 1400);
         COPY(buf, i, &swapped, 2, 1400);
     }
     rc = snprintf(buf + i, 1400 - i, "ee1:t%d", tid_len);
