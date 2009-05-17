@@ -1666,18 +1666,33 @@ dht_get_nodes(struct sockaddr_in *sins, int num)
 {
     int i;
     struct bucket *b;
+    struct node *n;
 
     i = 0;
-    b = buckets;
 
+    /* For restoring to work without discarding too many nodes, the list
+       must start with the contents of our bucket. */
+    b = find_bucket(myid);
+    n = b->nodes;
+    while(n && i < num) {
+        if(node_good(n)) {
+            sins[i] = n->sin;
+            i++;
+        }
+        n = n->next;
+    }
+
+    b = buckets;
     while(b && i < num) {
-        struct node *n= b->nodes;
-        while(n && i < num) {
-            if(node_good(n)) {
-                sins[i] = n->sin;
-                i++;
+        if(!in_bucket(myid, b)) {
+            n = b->nodes;
+            while(n && i < num) {
+                if(node_good(n)) {
+                    sins[i] = n->sin;
+                    i++;
+                }
+                n = n->next;
             }
-            n = n->next;
         }
         b = b->next;
     }
