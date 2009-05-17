@@ -126,6 +126,11 @@ much sense -- since the result is exponential in the number of nodes in the
 routing table, small variations in the latter cause huge jumps in the
 former.
 
+* dht_get_nodes
+
+This retrieves the list of known good nodes.  It is a good idea to save the
+list of known good nodes at shutdown, and add them at startup.
+
 * dht_dump_tables
 * dht_debug
 
