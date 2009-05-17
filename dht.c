@@ -563,15 +563,18 @@ new_node(int s, const unsigned char *id, struct sockaddr_in *sin,
             /* Pick the first dubious node that we haven't pinged in the
                last 15 seconds.  This gives nodes the time to reply, but
                tends to concentrate on the same nodes. */
-            if(!node_good(n) && n->pinged_time < now.tv_sec - 15) {
-                debugf("Sending ping to dubious node.\n");
-                send_ping(s,
-                          (struct sockaddr*)&n->sin, sizeof(struct sockaddr_in),
-                          (unsigned char*)"pn", 2);
-                n->pinged++;
-                n->pinged_time = now.tv_sec;
+            if(!node_good(n)) {
                 dubious = 1;
-                break;
+                if(n->pinged_time < now.tv_sec - 15) {
+                    debugf("Sending ping to dubious node.\n");
+                    send_ping(s,
+                              (struct sockaddr*)&n->sin,
+                              sizeof(struct sockaddr_in),
+                              (unsigned char*)"pn", 2);
+                    n->pinged++;
+                    n->pinged_time = now.tv_sec;
+                    break;
+                }
             }
             n = n->next;
         }
