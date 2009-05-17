@@ -268,8 +268,15 @@ main(int argc, char **argv)
             dumping = 0;
         }
     }
-    
-    dht_uninit(s, 0);
+
+    {
+        struct sockaddr_in sins[500];
+        int i;
+        i = dht_get_nodes(sins, 500);
+        printf("Found %d good nodes.\n", i);
+    }
+
+    dht_uninit(s, 1);
     return 0;
     
  usage:
