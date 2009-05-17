@@ -1,0 +1,20 @@
+unreleased: dht-0.3
+
+  * Fixed a bug in send_peers_found, and changed it to spread the load more
+    uniformly.
+  * Changed some time constants to be less chatty.
+  * When determining if a bucket is fresh enough, we only take replies into
+    account.
+  * dht_get_nodes now returns nodes staring with our own bucket.
+  * Tweaked the memory allocation strategy for stored peers.
+
+17 May 2009: dht-0.2
+
+  * Fixed a crash in dht_uninit.
+  * Added support for saving the list of known-good nodes.
+  * Changed the interface of dht_nodes to provide the number of nodes that
+    recently sent incoming requests.
+
+13 May 2009: dht-0.1
+
+  * Initial public release.
