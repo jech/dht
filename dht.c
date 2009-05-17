@@ -1498,7 +1498,6 @@ dht_periodic(int s, int available, time_t *tosleep,
                 debugf("Unexpected reply: ");
                 debug_printable(buf, rc);
                 debugf("\n");
-                /* Potentially annoying too. */
             }
             break;
         case PING:
