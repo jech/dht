@@ -1648,6 +1648,29 @@ dht_periodic(int s, int available, time_t *tosleep,
 }
 
 int
+dht_get_nodes(struct sockaddr_in *sins, int num)
+{
+    int i;
+    struct bucket *b;
+
+    i = 0;
+    b = buckets;
+
+    while(b && i < num) {
+        struct node *n= b->nodes;
+        while(n && i < num) {
+            if(node_good(n)) {
+                sins[i] = n->sin;
+                i++;
+            }
+            n = n->next;
+        }
+        b = b->next;
+    }
+    return i;
+}
+
+int
 dht_insert_node(int s, const unsigned char *id, struct sockaddr_in *sin)
 {
     struct node *n;
