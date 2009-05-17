@@ -2018,9 +2018,9 @@ send_peer_announced(int s, struct sockaddr *sa, int salen,
     char buf[512];
     int i = 0, rc;
 
-    rc = snprintf(buf + i, 512 - i, "d1:ad2:id20:"); INC(i, rc, 512);
+    rc = snprintf(buf + i, 512 - i, "d1:rd2:id20:"); INC(i, rc, 512);
     COPY(buf, i, myid, 20, 512);
-    rc = snprintf(buf + i, 512 - i, ":t%d:", tid_len);
+    rc = snprintf(buf + i, 512 - i, "e1:t%d:", tid_len);
     INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
     rc = snprintf(buf + i, 2048 - i, "1:y1:re"); INC(i, rc, 2048);
