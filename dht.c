@@ -2000,7 +2000,7 @@ send_peers_found(int s, struct sockaddr *sa, int salen,
         COPY(buf, i, peers2[j].ip, 4, 1400);
         COPY(buf, i, &swapped, 2, 1400);
     }
-    rc = snprintf(buf + i, 1400 - i, "ee1:t%d", tid_len);
+    rc = snprintf(buf + i, 1400 - i, "ee1:t%d:", tid_len);
     INC(i, rc, 1400);
     COPY(buf, i, tid, tid_len, 1400);
     rc = snprintf(buf + i, 2048 - i, "1:y1:re"); INC(i, rc, 2048);
