@@ -516,7 +516,7 @@ new_node(int s, const unsigned char *id, struct sockaddr_in *sin,
     if(id_cmp(id, myid) == 0)
         return NULL;
 
-    if(confirm)
+    if(confirm == 2)
         b->time = now.tv_sec;
 
     n = b->nodes;
