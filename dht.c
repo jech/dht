@@ -1471,15 +1471,15 @@ dht_periodic(int s, int available, time_t *tosleep,
                     make_token((unsigned char*)&source.sin_addr, port,
                                0, token);
                     /* We send up to 113 nodes, as this fits in 1024 bytes. */
-                    if(st->numpeers > 113)
-                        i0 = random() % (st->numpeers - 113);
+                    if(st->numpeers > 50)
+                        i0 = random() % (st->numpeers - 50);
                     else
                         i0 = 0;
                     send_peers_found(s, (struct sockaddr*)&source,
                                      sizeof(source), tid, tid_len,
                                      st->peers + i0,
-                                     i0 + 113 > st->numpeers ?
-                                     st->numpeers - i0 : 113,
+                                     i0 + 50 > st->numpeers ?
+                                     st->numpeers - i0 : 50,
                                      token, TOKEN_SIZE);
 
                 } else {
@@ -1887,7 +1887,7 @@ send_peers_found(int s, struct sockaddr *sa, int salen,
                  struct peer *peers, int numpeers,
                  unsigned char *token, int token_len)
 {
-    char buf[1400];             /* we're sending up to 1kB of peers data */
+    char buf[1400];
     int i = 0, rc, j;
 
     rc = snprintf(buf + i, 1400 - i, "d1:rd2:id20:"); INC(i, rc, 1400);
