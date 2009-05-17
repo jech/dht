@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include <sys/signal.h>
 
 #include "dht.h"
@@ -143,22 +144,32 @@ main(int argc, char **argv)
         goto usage;
 
     while(i < argc) {
-        struct sockaddr_in sin;
-        if(num_bootstrap_nodes >= MAX_BOOTSTRAP_NODES)
-            goto usage;
-        memset(&sin, 0, sizeof(sin));
-        sin.sin_family = PF_INET;
-        rc = inet_pton(AF_INET, argv[i], &sin.sin_addr);
-        if(rc == 1) {
-            i++; if(i >= argc) goto usage;
-            sin.sin_port = htons(atoi(argv[i]));
-            if(sin.sin_port == 0) goto usage;
-            i++;
-            bootstrap_nodes[num_bootstrap_nodes] = sin;
-            num_bootstrap_nodes++;
-        } else {
-            goto usage;
+        struct addrinfo hints, *info, *infop;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_DGRAM;
+        rc = getaddrinfo(argv[i], NULL, &hints, &info);
+        if(rc != 0) {
+            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+            exit(1);
         }
+
+        i++;
+
+        infop = info;
+        while(infop) {
+            if(infop->ai_addr->sa_family == AF_INET) {
+                struct sockaddr_in sin;
+                memcpy(&sin, infop->ai_addr, infop->ai_addrlen);
+                sin.sin_port = htons(atoi(argv[i]));
+                bootstrap_nodes[num_bootstrap_nodes] = sin;
+                num_bootstrap_nodes++;
+            }
+            infop = infop->ai_next;
+        }
+        freeaddrinfo(info);
+
+        i++;
     }
 
     if(i < argc)
