@@ -1636,8 +1636,12 @@ dht_periodic(int s, int available, time_t *tosleep,
             soon = 1;
         }
 
+        /* In order to maintain all buckets' age within 900 seconds, worst
+           case is roughly 40 seconds, assuming the table is 22 bits deep.
+           We want to keep a margin for neighborhood maintenance, so keep
+           this within 30 seconds. */
         if(soon)
-            confirm_nodes_time = now.tv_sec + 5 + random() % 10;
+            confirm_nodes_time = now.tv_sec + 10 + random() % 20;
         else
             confirm_nodes_time = now.tv_sec + 60 + random() % 120;
     }
