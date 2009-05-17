@@ -156,7 +156,8 @@ static int send_announce_peer(int s, struct sockaddr *sa, int salen,
                               unsigned char *token, int token_len, int confirm);
 int send_peers_found(int s, struct sockaddr *sa, int salen,
                      unsigned char *tid, int tid_len,
-                     struct peer *peers, int numpeers,
+                     struct peer *peers1, int numpeers1,
+                     struct peer *peers2, int numpeers2,
                      unsigned char *token, int token_len);
 int send_peer_announced(int s, struct sockaddr *sa, int salen,
                         unsigned char *tid, int tid_len);
@@ -1469,20 +1470,20 @@ dht_periodic(int s, int available, time_t *tosleep,
             } else {
                 struct storage *st = find_storage(info_hash);
                 if(st && st->numpeers > 0) {
-                    int i0;
+                    int i0, n0, n1;
                     unsigned char token[TOKEN_SIZE];
                     make_token((unsigned char*)&source.sin_addr, port,
                                0, token);
-                    /* We send up to 113 nodes, as this fits in 1024 bytes. */
-                    if(st->numpeers > 50)
-                        i0 = random() % (st->numpeers - 50);
-                    else
-                        i0 = 0;
+                    i0 = random() % st->numpeers;
+                    /* We treat peers as a circular list, and choose 50
+                       peers starting at i0. */
+                    n0 = MIN(st->numpeers - i0, 50);
+                    n1 = n0 >= 50 ? 0 : MIN(50, i0);
+
                     send_peers_found(s, (struct sockaddr*)&source,
                                      sizeof(source), tid, tid_len,
-                                     st->peers + i0,
-                                     i0 + 50 > st->numpeers ?
-                                     st->numpeers - i0 : 50,
+                                     st->peers + i0, n0,
+                                     st->peers, n1,
                                      token, TOKEN_SIZE);
 
                 } else {
@@ -1887,7 +1888,8 @@ send_announce_peer(int s, struct sockaddr *sa, int salen,
 int
 send_peers_found(int s, struct sockaddr *sa, int salen,
                  unsigned char *tid, int tid_len,
-                 struct peer *peers, int numpeers,
+                 struct peer *peers1, int numpeers1,
+                 struct peer *peers2, int numpeers2,
                  unsigned char *token, int token_len)
 {
     char buf[1400];
@@ -1898,10 +1900,16 @@ send_peers_found(int s, struct sockaddr *sa, int salen,
     rc = snprintf(buf + i, 1400 - i, "5:token%d:", token_len); INC(i, rc, 1400);
     COPY(buf, i, token, token_len, 1400);
     rc = snprintf(buf + i, 1400 - i, "6:valuesl"); INC(i, rc, 1400);
-    for(j = 0; j < numpeers; j++) {
-        unsigned short swapped = htons(peers[j].port);
+    for(j = 0; j < numpeers1; j++) {
+        unsigned short swapped = htons(peers1[j].port);
         rc = snprintf(buf + i, 1400 - i, "6:"); INC(i, rc, 1400);
-        COPY(buf, i, peers[j].ip, 4, 1400);
+        COPY(buf, i, peers1[j].ip, 4, 1400);
+        COPY(buf, i, &swapped, 2, 1400);
+    }
+    for(j = 0; j < numpeers2; j++) {
+        unsigned short swapped = htons(peers2[j].port);
+        rc = snprintf(buf + i, 1400 - i, "6:"); INC(i, rc, 1400);
+        COPY(buf, i, peers2[j].ip, 4, 1400);
         COPY(buf, i, &swapped, 2, 1400);
     }
     rc = snprintf(buf + i, 1400 - i, "ee1:t%d", tid_len);
