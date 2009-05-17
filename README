@@ -132,8 +132,9 @@ former.
 
 * dht_get_nodes
 
-This retrieves the list of known good nodes.  It is a good idea to save the
-list of known good nodes at shutdown, and add them at startup.
+This retrieves the list of known good nodes, starting with the nodes in our
+own bucket.  It is a good idea to save the list of known good nodes at
+shutdown, and ping them at startup.
 
 * dht_dump_tables
 * dht_debug
