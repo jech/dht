@@ -256,7 +256,7 @@ main(int argc, char **argv)
         /* This is how you trigger a search for a torrent hash.  If port
            (the third argument) is non-zero, it also performs an announce.
            Since peers expire announced data after 30 minutes, it's a good
-           idea to reannounce every 14 minutes or so. */
+           idea to reannounce every 28 minutes or so. */
         if(searching) {
             dht_search(s, hash, 0, callback, NULL);
             searching = 0;
