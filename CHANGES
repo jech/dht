@@ -1,4 +1,4 @@
-unreleased: dht-0.3
+17 May 2009: dht-0.3
 
   * Fixed a number of incorrectly formatted messages.
   * Changed reply to find_peers to spread the load more uniformly.
