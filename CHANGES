@@ -1,3 +1,7 @@
+Unreleased: dht-0.4
+
+  * Fixed the handling of tokens in announce_peer messages.
+
 17 May 2009: dht-0.3
 
   * Fixed a number of incorrectly formatted messages.
