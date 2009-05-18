@@ -1579,6 +1579,7 @@ dht_periodic(int s, int available, time_t *tosleep,
             }
             storage_store(info_hash,
                           (unsigned char*)&source.sin_addr, port);
+            debugf("Sending peer announced acknowledgement.\n");
             send_peer_announced(s, (struct sockaddr*)&source,
                                 sizeof(source), tid, tid_len);
         }
