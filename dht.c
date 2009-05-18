@@ -1534,7 +1534,8 @@ dht_periodic(int s, int available, time_t *tosleep,
                 if(st && st->numpeers > 0) {
                     int i0, n0, n1;
                     unsigned char token[TOKEN_SIZE];
-                    make_token((unsigned char*)&source.sin_addr, port,
+                    make_token((unsigned char*)&source.sin_addr,
+                               ntohs(source.sin_port),
                                0, token);
                     i0 = random() % st->numpeers;
                     /* We treat peers as a circular list, and choose 50
@@ -1552,11 +1553,15 @@ dht_periodic(int s, int available, time_t *tosleep,
                 } else {
                     struct bucket *b = find_bucket(info_hash);
                     if(b) {
+                        unsigned char token[TOKEN_SIZE];
+                        make_token((unsigned char*)&source.sin_addr,
+                                   ntohs(source.sin_port),
+                                   0, token);
                         debugf("Sending nodes for get_peers.\n");
                         send_bucket_nodes(s, (struct sockaddr*)&source,
                                           sizeof(source),
                                           tid, tid_len, b,
-                                          secret, sizeof(secret));
+                                          token, TOKEN_SIZE);
                     }
                 }
             }
@@ -1568,8 +1573,9 @@ dht_periodic(int s, int available, time_t *tosleep,
                 debugf("Announce_peer with no info_hash.\n");
                 break;
             }
-            if(token_match(token, token_len,
-                           (unsigned char*)&source.sin_addr, port)) {
+            if(!token_match(token, token_len,
+                            (unsigned char*)&source.sin_addr,
+                            ntohs(source.sin_port))) {
                 debugf("Incorrect token for announce_peer.\n");
                 break;
             }
