@@ -1573,8 +1573,8 @@ dht_periodic(int s, int available, time_t *tosleep,
                 debugf("Incorrect token for announce_peer.\n");
                 break;
             }
-            if(port == 0) {
-                debugf("Announce_peer with 0 port.\n");
+            if(port == 0 || port == 25) {
+                debugf("Announce_peer with forbidden port %d.\n", port);
                 break;
             }
             storage_store(info_hash,
