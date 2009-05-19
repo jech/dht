@@ -1,6 +1,7 @@
 Unreleased: dht-0.5
 
   * Made reading of /dev/urandom a function provided by the user.
+  * Implemented the ``v'' extension that identifies node implementations.
 
 18 May 2009: dht-0.4
 
