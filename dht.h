@@ -49,3 +49,4 @@ void dht_hash(void *hash_return, int hash_size,
               const void *v1, int len1,
               const void *v2, int len2,
               const void *v3, int len3);
+int dht_random_bytes(void *buf, size_t size);

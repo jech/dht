@@ -1108,21 +1108,16 @@ broken_node(int s, const unsigned char *id, struct sockaddr_in *sin)
 static int
 rotate_secrets(void)
 {
-    int fd;
-    unsigned seed;
+    int rc;
 
-    fd = open("/dev/urandom", O_RDONLY);
-    if(fd < 0)
-        return -1;
+    rotate_secrets_time = now.tv_sec + 900 + random() % 1800;
 
     memcpy(oldsecret, secret, sizeof(secret));
-    read(fd, secret, sizeof(secret));
+    rc = dht_random_bytes(secret, sizeof(secret));
 
-    read(fd, &seed, sizeof(seed));
-    srandom(seed);
+    if(rc < 0)
+        return -1;
 
-    close(fd);
-    rotate_secrets_time = now.tv_sec + 900 + random() % 1800;
     return 1;
 }
 
