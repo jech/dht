@@ -193,6 +193,8 @@ static time_t confirm_nodes_time;
 static time_t rotate_secrets_time;
 
 static unsigned char myid[20];
+static int have_v = 0;
+static unsigned char my_v[9];
 static unsigned char secret[8];
 static unsigned char oldsecret[8];
 
@@ -1265,7 +1267,7 @@ dht_dump_tables(FILE *f)
 }
 
 int
-dht_init(int s, const unsigned char *id)
+dht_init(int s, const unsigned char *id, const unsigned char *v)
 {
     int rc;
 
@@ -1291,6 +1293,13 @@ dht_init(int s, const unsigned char *id)
         goto fail;
 
     memcpy(myid, id, 20);
+    if(v) {
+        memcpy(my_v, "1:v4:", 5);
+        memcpy(my_v + 5, v, 4);
+        have_v = 1;
+    } else {
+        have_v = 0;
+    }
 
     gettimeofday(&now, NULL);
 
@@ -1827,6 +1836,11 @@ dht_ping_node(int s, struct sockaddr_in *sin)
     memcpy(buf + offset, src, delta);                   \
     i += delta;
 
+#define ADD_V(buf, offset, size)                        \
+    if(have_v) {                                        \
+        COPY(buf, offset, my_v, sizeof(my_v), size);    \
+    }
+
 int
 send_ping(int s, struct sockaddr *sa, int salen,
           const unsigned char *tid, int tid_len)
@@ -1838,6 +1852,7 @@ send_ping(int s, struct sockaddr *sa, int salen,
     rc = snprintf(buf + i, 512 - i, "e1:q4:ping1:t%d:", tid_len);
     INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
+    ADD_V(buf, i, 512);
     rc = snprintf(buf + i, 512 - i, "1:y1:qe"); INC(i, rc, 512);
     return sendto(s, buf, i, 0, sa, salen);
 
@@ -1856,6 +1871,7 @@ send_pong(int s, struct sockaddr *sa, int salen,
     COPY(buf, i, myid, 20, 512);
     rc = snprintf(buf + i, 512 - i, "e1:t%d:", tid_len); INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
+    ADD_V(buf, i, 512);
     rc = snprintf(buf + i, 512 - i, "1:y1:re"); INC(i, rc, 512);
     return sendto(s, buf, i, 0, sa, salen);
 
@@ -1878,6 +1894,7 @@ send_find_node(int s, struct sockaddr *sa, int salen,
     rc = snprintf(buf + i, 512 - i, "e1:q9:find_node1:t%d:", tid_len);
     INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
+    ADD_V(buf, i, 512);
     rc = snprintf(buf + i, 512 - i, "1:y1:qe"); INC(i, rc, 512);
     return sendto(s, buf, i, confirm ? MSG_CONFIRM : 0, sa, salen);
 
@@ -1908,6 +1925,7 @@ send_found_nodes(int s, struct sockaddr *sa, int salen,
     }
     rc = snprintf(buf + i, 2048 - i, "e1:t%d:", tid_len); INC(i, rc, 2048);
     COPY(buf, i, tid, tid_len, 2048);
+    ADD_V(buf, i, 2048);
     rc = snprintf(buf + i, 2048 - i, "1:y1:re"); INC(i, rc, 2048);
 
     return sendto(s, buf, i, 0, sa, salen);
@@ -1964,6 +1982,7 @@ send_get_peers(int s, struct sockaddr *sa, int salen,
     rc = snprintf(buf + i, 512 - i, "e1:q9:get_peers1:t%d:", tid_len);
     INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
+    ADD_V(buf, i, 512);
     rc = snprintf(buf + i, 512 - i, "1:y1:qe"); INC(i, rc, 512);
     return sendto(s, buf, i, confirm ? MSG_CONFIRM : 0, sa, salen);
 
@@ -1992,6 +2011,7 @@ send_announce_peer(int s, struct sockaddr *sa, int salen,
     rc = snprintf(buf + i, 512 - i, "e1:q13:announce_peer1:t%d:", tid_len);
     INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
+    ADD_V(buf, i, 512);
     rc = snprintf(buf + i, 512 - i, "1:y1:qe"); INC(i, rc, 512);
 
     return sendto(s, buf, i, confirm ? 0 : MSG_CONFIRM, sa, salen);
@@ -2031,6 +2051,7 @@ send_peers_found(int s, struct sockaddr *sa, int salen,
     rc = snprintf(buf + i, 1400 - i, "ee1:t%d:", tid_len);
     INC(i, rc, 1400);
     COPY(buf, i, tid, tid_len, 1400);
+    ADD_V(buf, i, 512);
     rc = snprintf(buf + i, 2048 - i, "1:y1:re"); INC(i, rc, 2048);
     return sendto(s, buf, i, 0, sa, salen);
 
@@ -2051,6 +2072,7 @@ send_peer_announced(int s, struct sockaddr *sa, int salen,
     rc = snprintf(buf + i, 512 - i, "e1:t%d:", tid_len);
     INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
+    ADD_V(buf, i, 2048);
     rc = snprintf(buf + i, 2048 - i, "1:y1:re"); INC(i, rc, 2048);
     return sendto(s, buf, i, 0, sa, salen);
 
