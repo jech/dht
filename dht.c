@@ -692,7 +692,7 @@ expire_buckets(int s)
    a unique transaction id, a short (and hence small enough to fit in the
    transaction id of the protocol packets). */
 
-struct search *
+static struct search *
 find_search(unsigned short tid)
 {
     int i;
@@ -707,7 +707,7 @@ find_search(unsigned short tid)
    target.  We just got a new candidate, insert it at the right spot or
    discard it. */
 
-int
+static int
 insert_search_node(unsigned char *id, struct sockaddr_in *sin,
                    struct search *sr, int replied,
                    unsigned char *token, int token_len)
@@ -807,7 +807,7 @@ search_send_get_peers(int s, struct search *sr, struct search_node *n)
 
 /* When a search is in progress, we periodically call search_step to send
    further requests. */
-void
+static void
 search_step(int s, struct search *sr, dht_callback *callback, void *closure)
 {
     int i, j;
@@ -1023,9 +1023,10 @@ storage_store(const unsigned char *id, const unsigned char *ip,
         if(i >= st->maxpeers) {
             /* Need to expand the array. */
             struct peer *new_peers;
+            int n;
             if(st->maxpeers > DHT_MAX_PEERS / 2)
                 return 0;
-            int n = st->maxpeers == 0 ? 2 : 2 * st->maxpeers;
+            n = st->maxpeers == 0 ? 2 : 2 * st->maxpeers;
             new_peers = realloc(st->peers, n * sizeof(struct peer));
             if(new_peers == NULL)
                 return -1;
@@ -1041,7 +1042,7 @@ storage_store(const unsigned char *id, const unsigned char *ip,
 }
 
 static int
-expire_storage()
+expire_storage(void)
 {
     struct storage *st = storage, *previous = NULL;
     while(st) {
@@ -1105,7 +1106,7 @@ broken_node(int s, const unsigned char *id, struct sockaddr_in *sin)
 }
 
 static int
-rotate_secrets()
+rotate_secrets(void)
 {
     int fd;
     unsigned seed;
@@ -1346,7 +1347,7 @@ dht_uninit(int s, int dofree)
 /* Rate control for requests we receive. */
 
 static int
-leaky_bucket()
+leaky_bucket(void)
 {
     if(leaky_bucket_tokens == 0) {
         leaky_bucket_tokens = MIN(MAX_LEAKY_BUCKET_TOKENS,
