@@ -1284,11 +1284,11 @@ dht_init(int s, const unsigned char *id)
 
     rc = fcntl(s, F_GETFL, 0);
     if(rc < 0)
-        return -1;
+        goto fail;
 
     rc = fcntl(s, F_SETFL, (rc | O_NONBLOCK));
     if(rc < 0)
-        return -1;
+        goto fail;
 
     memcpy(myid, id, 20);
 
@@ -1306,10 +1306,18 @@ dht_init(int s, const unsigned char *id)
     leaky_bucket_tokens = MAX_LEAKY_BUCKET_TOKENS;
 
     memset(secret, 0, sizeof(secret));
-    rotate_secrets();
+    rc = rotate_secrets();
+    if(rc < 0)
+        goto fail;
+
     expire_buckets(s);
 
     return 1;
+
+ fail:
+    free(buckets);
+    buckets = NULL;
+    return -1;
 }
 
 int
