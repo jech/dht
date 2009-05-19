@@ -1,6 +1,7 @@
 Unreleased: dht-0.4
 
   * Fixed the handling of tokens in announce_peer messages.
+  * Implemented backtracking during search when nodes turn out to be dead.
 
 17 May 2009: dht-0.3
 
