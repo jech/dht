@@ -1507,6 +1507,8 @@ dht_periodic(int s, int available, time_t *tosleep,
                             sr->nodes[i].request_time = 0;
                             sr->nodes[i].reply_time = now.tv_sec;
                             sr->nodes[i].acked = 1;
+                            sr->nodes[i].pinged = 0;
+                            break;
                         }
                     /* See comment for gp above. */
                     search_send_get_peers(s, sr, NULL);
