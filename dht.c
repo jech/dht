@@ -102,13 +102,18 @@ struct search_node {
     int acked;                  /* whether they acked our announcement */
 };
 
+/* When performing a search, we search for up to SEARCH_NODES closest nodes
+   to the destinatin, and use the additional ones to backtrack if any of
+   the target 8 turn out to be dead. */
+#define SEARCH_NODES 14
+
 struct search {
     unsigned short tid;
     time_t step_time;           /* the time of the last search_step */
     unsigned char id[20];
     unsigned short port;        /* 0 for pure searches */
     int done;
-    struct search_node nodes[8];
+    struct search_node nodes[SEARCH_NODES];
     int numnodes;
 };
 
@@ -720,10 +725,10 @@ insert_search_node(unsigned char *id, struct sockaddr_in *sin,
             break;
     }
 
-    if(i == 8)
+    if(i == SEARCH_NODES)
         return 0;
 
-    if(sr->numnodes < 8)
+    if(sr->numnodes < SEARCH_NODES)
         sr->numnodes++;
 
     for(j = sr->numnodes - 1; j > i; j--) {
@@ -805,15 +810,20 @@ search_send_get_peers(int s, struct search *sr, struct search_node *n)
 void
 search_step(int s, struct search *sr, dht_callback *callback, void *closure)
 {
-    int i, j = 0;
+    int i, j;
     int all_done = 1;
 
-    for(i = 0; i < sr->numnodes; i++) {
+    /* Check if the first 8 live nodes have replied. */
+    j = 0;
+    for(i = 0; i < sr->numnodes && j < 8; i++) {
         struct search_node *n = &sr->nodes[i];
-        if(n->pinged < 3 && !n->replied) {
+        if(n->pinged >= 3)
+            continue;
+        if(!n->replied) {
             all_done = 0;
             break;
         }
+        j++;
     }
 
     if(all_done) {
@@ -821,11 +831,14 @@ search_step(int s, struct search *sr, dht_callback *callback, void *closure)
             goto done;
         } else {
             int all_acked = 1;
-            for(i = 0; i < sr->numnodes; i++) {
+            j = 0;
+            for(i = 0; i < sr->numnodes && j < 8; i++) {
                 struct search_node *n = &sr->nodes[i];
                 struct node *node;
                 unsigned char tid[4];
-                if(n->pinged < 3 && !n->acked) {
+                if(n->pinged >= 3)
+                    continue;
+                if(!n->acked) {
                     all_acked = 0;
                     debugf("Sending announce_peer.\n");
                     make_tid(tid, "ap", sr->tid);
@@ -840,6 +853,7 @@ search_step(int s, struct search *sr, dht_callback *callback, void *closure)
                     node = find_node(n->id);
                     if(node) pinged(s, node, NULL);
                 }
+                j++;
             }
             if(all_acked)
                 goto done;
@@ -851,6 +865,7 @@ search_step(int s, struct search *sr, dht_callback *callback, void *closure)
     if(sr->step_time + 15 >= now.tv_sec)
         return;
 
+    j = 0;
     for(i = 0; i < sr->numnodes; i++) {
         j += search_send_get_peers(s, sr, &sr->nodes[i]);
         if(j >= 3)
@@ -954,7 +969,7 @@ dht_search(int s, const unsigned char *id, int port,
         if(p)
             insert_search_bucket(p, sr);
     }
-    if(sr->numnodes < 8)
+    if(sr->numnodes < SEARCH_NODES)
         insert_search_bucket(find_bucket(myid), sr);
 
     search_step(s, sr, callback, closure);
