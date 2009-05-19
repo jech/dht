@@ -1,3 +1,7 @@
+Unreleased: dht-0.5
+
+  * Made reading of /dev/urandom a function provided by the user.
+
 18 May 2009: dht-0.4
 
   * Fixed the handling of tokens in announce_peer messages.
