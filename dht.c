@@ -153,8 +153,7 @@ static int send_bucket_nodes(int s, struct sockaddr *sa, int salen,
                              const unsigned char *token, int token_len);
 static int send_get_peers(int s, struct sockaddr *sa, int salen,
                           unsigned char *tid, int tid_len,
-                          unsigned char *infohash, unsigned short port,
-                          int confirm);
+                          unsigned char *infohash, int confirm);
 static int send_announce_peer(int s, struct sockaddr *sa, int salen,
                               unsigned char *tid, int tid_len,
                               unsigned char *infohas, unsigned short port,
@@ -795,8 +794,7 @@ search_send_get_peers(int s, struct search *sr, struct search_node *n)
     debugf("Sending get_peers.\n");
     make_tid(tid, "gp", sr->tid);
     send_get_peers(s, (struct sockaddr*)&n->sin,
-                   sizeof(struct sockaddr_in),
-                   tid, 4, sr->id, sr->tid,
+                   sizeof(struct sockaddr_in), tid, 4, sr->id,
                    n->reply_time >= now.tv_sec - 15);
     n->pinged++;
     n->request_time = now.tv_sec;
@@ -1969,8 +1967,8 @@ send_bucket_nodes(int s, struct sockaddr *sa, int salen,
 
 int
 send_get_peers(int s, struct sockaddr *sa, int salen,
-               unsigned char *tid, int tid_len,
-               unsigned char *infohash, unsigned short port, int confirm)
+               unsigned char *tid, int tid_len, unsigned char *infohash,
+               int confirm)
 {
     char buf[512];
     int i = 0, rc;
