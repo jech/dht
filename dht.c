@@ -739,7 +739,6 @@ insert_search_node(unsigned char *id, struct sockaddr_in *sin,
                    struct search *sr, int replied,
                    unsigned char *token, int token_len)
 {
-    int bits = common_bits(id, sr->id);
     struct search_node *n;
     int i, j;
 
@@ -748,7 +747,7 @@ insert_search_node(unsigned char *id, struct sockaddr_in *sin,
             n = &sr->nodes[i];
             goto found;
         }
-        if(common_bits(sr->id, sr->nodes[i].id) < bits)
+        if(xorcmp(id, sr->nodes[i].id, sr->id) < 0)
             break;
     }
 
