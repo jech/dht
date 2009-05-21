@@ -1387,7 +1387,7 @@ dht_periodic(int s, int available, time_t *tosleep,
     if(available) {
         int rc, i, message;
         unsigned char tid[16], id[20], info_hash[20], target[20];
-        unsigned char buf[1024], nodes[256], token[128];
+        unsigned char buf[1536], nodes[256], token[128];
         int tid_len = 16, token_len = 128;
         int nodes_len = 256;
         unsigned short port;
@@ -1397,7 +1397,7 @@ dht_periodic(int s, int available, time_t *tosleep,
         socklen_t source_len = sizeof(struct sockaddr_in);
         unsigned short ttid;
 
-        rc = recvfrom(s, buf, 1024, 0,
+        rc = recvfrom(s, buf, 1536, 0,
                       (struct sockaddr*)&source, &source_len);
         if(rc < 0) {
             if(errno == EAGAIN)
