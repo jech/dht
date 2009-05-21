@@ -2085,6 +2085,11 @@ send_peer_announced(int s, struct sockaddr *sa, int salen,
     return -1;
 }
 
+#undef CHECK
+#undef INC
+#undef COPY
+#undef ADD_V
+
 #ifndef HAVE_MEMMEM
 static void *
 memmem(const void *haystack, size_t haystacklen,
