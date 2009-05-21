@@ -1367,7 +1367,7 @@ leaky_bucket(void)
 {
     if(leaky_bucket_tokens == 0) {
         leaky_bucket_tokens = MIN(MAX_LEAKY_BUCKET_TOKENS,
-                                  2 * (now.tv_sec - leaky_bucket_time));
+                                  4 * (now.tv_sec - leaky_bucket_time));
         leaky_bucket_time = now.tv_sec;
     }
 
