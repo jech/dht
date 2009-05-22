@@ -603,7 +603,7 @@ new_node(int s, const unsigned char *id, struct sockaddr_in *sin,
     /* New node.  First, try to get rid of a known-bad node. */
     n = b->nodes;
     while(n) {
-        if(n->pinged >= 3) {
+        if(n->pinged >= 3 && n->pinged_time < now.tv_sec - 15) {
             memcpy(n->id, id, 20);
             n->sin = *sin;
             n->time = confirm ? now.tv_sec : 0;
