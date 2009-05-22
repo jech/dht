@@ -624,7 +624,8 @@ new_node(int s, const unsigned char *id, struct sockaddr_in *sin,
         while(n) {
             /* Pick the first dubious node that we haven't pinged in the
                last 15 seconds.  This gives nodes the time to reply, but
-               tends to concentrate on the same nodes. */
+               tends to concentrate on the same nodes, so that we get rid
+               of bad nodes fast. */
             if(!node_good(n)) {
                 dubious = 1;
                 if(n->pinged_time < now.tv_sec - 15) {
