@@ -109,7 +109,7 @@ struct search_node {
 };
 
 /* When performing a search, we search for up to SEARCH_NODES closest nodes
-   to the destinatin, and use the additional ones to backtrack if any of
+   to the destination, and use the additional ones to backtrack if any of
    the target 8 turn out to be dead. */
 #define SEARCH_NODES 14
 
