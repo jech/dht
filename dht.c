@@ -1964,7 +1964,7 @@ insert_closest_node(unsigned char *nodes, int numnodes,
                     const unsigned char *id, struct node *n)
 {
     int i;
-    for(i = 0; numnodes; i++) {
+    for(i = 0; i< numnodes; i++) {
         if(id_cmp(nodes + 26 * i, id) == 0)
             return numnodes;
         if(xorcmp(n->id, nodes + 26 * i, id) < 0)
