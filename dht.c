@@ -2151,7 +2151,11 @@ memmem(const void *haystack, size_t haystacklen,
     const char *n = needle;
     size_t i;
 
-    for(i = 0; i < haystacklen - needlelen; i++) {
+    /* size_t is unsigned */
+    if(needlelen > haystacklen)
+        return NULL;
+
+    for(i = 0; i <= haystacklen - needlelen; i++) {
         if(memcmp(h + i, n, needlelen) == 0)
             return (void*)(h + i);
     }
