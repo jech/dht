@@ -1,4 +1,4 @@
-dht-0.7 (unreleased)
+24 June 2009: dht-0.7
 
   * Removed the fixed limit on the number of concurrent searches, we now
     use a linked list.
