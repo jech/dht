@@ -816,7 +816,7 @@ expire_searches(void)
             if(previous)
                 previous->next = next;
             else
-                searches->next = next;
+                searches = next;
             free(sr);
             numsearches--;
         } else {
