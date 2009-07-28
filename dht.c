@@ -1426,7 +1426,13 @@ dht_uninit(int s, int dofree)
         free(st->peers);
         free(st);
     }
-    
+
+    while(searches) {
+        struct search *sr = searches;
+        searches = searches->next;
+        free(sr);
+    }
+
     return 1;
 }
 
