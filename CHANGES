@@ -1,6 +1,7 @@
 dht-0.9 (unreleased):
 
-  * Fixed a typo in dht_nodes.
+  * Fixed incorrect computation of number of nodes.
+  * Made the initial bucket split more eagerly.
 
 28 July 2009: dht-0.8
 
