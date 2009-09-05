@@ -1036,7 +1036,7 @@ dht_search(int s, const unsigned char *id, int port,
     b = find_bucket(id);
     insert_search_bucket(b, sr);
 
-    if(sr->numnodes < 8) {
+    if(sr->numnodes < SEARCH_NODES) {
         struct bucket *p = previous_bucket(b);
         if(b->next)
             insert_search_bucket(b->next, sr);
