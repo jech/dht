@@ -650,8 +650,10 @@ new_node(int s, const unsigned char *id, struct sockaddr_in *sin,
             }
             n = n->next;
         }
-        
-        if(!dubious && mybucket) {
+
+        /* If there's only one bucket, split even if there remain doubtful
+           nodes.  This violates the spec, but it speeds up bootstrapping. */
+        if(mybucket && (!dubious || buckets->next == NULL)) {
             debugf("Splitting.\n");
             b = split_bucket(s, b);
             mybucket_grow_time = now.tv_sec;
