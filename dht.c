@@ -1603,7 +1603,7 @@ dht_periodic(int s, int available, time_t *tosleep,
                 debugf("Got reply to announce_peer.\n");
                 sr = find_search(ttid);
                 if(!sr) {
-                    debugf("Unknown search!");
+                    debugf("Unknown search!\n");
                     new_node(s, id, &source, 1);
                 } else {
                     int i;
