@@ -1628,7 +1628,7 @@ dht_periodic(int s, int available, time_t *tosleep,
         case PING:
             debugf("Ping (%d)!\n", tid_len);
             new_node(s, id, &source, 1);
-            debugf("Sending pong!\n");
+            debugf("Sending pong.\n");
             send_pong(s, (struct sockaddr*)&source, sizeof(source),
                       tid, tid_len);
             break;
