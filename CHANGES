@@ -1,4 +1,4 @@
-dht-0.9 (unreleased):
+20 September 2009: dht-0.9
 
   * Fixed incorrect computation of number of nodes.
   * Made the initial bucket split eagerly (speeds up bootstrapping).
