@@ -161,9 +161,11 @@ static int send_pong(int s, struct sockaddr *sa, int salen,
 static int send_find_node(int s, struct sockaddr *sa, int salen,
                           const unsigned char *tid, int tid_len,
                           const unsigned char *target, int confirm);
-static int send_found_nodes(int s, struct sockaddr *sa, int salen,
+static int send_nodes_peers(int s, struct sockaddr *sa, int salen,
                             const unsigned char *tid, int tid_len,
                             const unsigned char *nodes, int nodes_len,
+                            struct peer *peers1, int numpeers1,
+                            struct peer *peers2, int numpeers2,
                             const unsigned char *token, int token_len);
 static int send_closest_nodes(int s, struct sockaddr *sa, int salen,
                               const unsigned char *tid, int tid_len,
@@ -176,11 +178,6 @@ static int send_announce_peer(int s, struct sockaddr *sa, int salen,
                               unsigned char *tid, int tid_len,
                               unsigned char *infohas, unsigned short port,
                               unsigned char *token, int token_len, int confirm);
-int send_peers_found(int s, struct sockaddr *sa, int salen,
-                     unsigned char *tid, int tid_len,
-                     struct peer *peers1, int numpeers1,
-                     struct peer *peers2, int numpeers2,
-                     unsigned char *token, int token_len);
 int send_peer_announced(int s, struct sockaddr *sa, int salen,
                         unsigned char *tid, int tid_len);
 
@@ -1660,8 +1657,9 @@ dht_periodic(int s, int available, time_t *tosleep,
                     n1 = n0 >= 50 ? 0 : MIN(50, i0);
 
                     debugf("Sending found peers (%d).\n", n0 + n1);
-                    send_peers_found(s, (struct sockaddr*)&source,
+                    send_nodes_peers(s, (struct sockaddr*)&source,
                                      sizeof(source), tid, tid_len,
+                                     NULL, 0,
                                      st->peers + i0, n0,
                                      st->peers, n1,
                                      token, TOKEN_SIZE);
@@ -1990,24 +1988,38 @@ send_find_node(int s, struct sockaddr *sa, int salen,
 }
 
 int
-send_found_nodes(int s, struct sockaddr *sa, int salen,
+send_nodes_peers(int s, struct sockaddr *sa, int salen,
                  const unsigned char *tid, int tid_len,
                  const unsigned char *nodes, int nodes_len,
+                 struct peer *peers1, int numpeers1,
+                 struct peer *peers2, int numpeers2,
                  const unsigned char *token, int token_len)
 {
     char buf[2048];
-    int i = 0, rc;
+    int i = 0, rc, j;
     rc = snprintf(buf + i, 2048 - i, "d1:rd2:id20:"); INC(i, rc, 2048);
     COPY(buf, i, myid, 20, 2048);
-    if(nodes) {
+    if(token_len > 0) {
+        rc = snprintf(buf + i, 2048 - i, "5:token%d:", token_len);
+        INC(i, rc, 2048);
+        COPY(buf, i, token, token_len, 2048);
+    }
+    if(nodes_len > 0) {
         rc = snprintf(buf + i, 2048 - i, "5:nodes%d:", nodes_len);
         INC(i, rc, 2048);
         COPY(buf, i, nodes, nodes_len, 2048);
     }
-    if(token) {
-        rc = snprintf(buf + i, 2048 - i, "5:token%d:", token_len);
-        INC(i, rc, 2048);
-        COPY(buf, i, token, token_len, 2048);
+    for(j = 0; j < numpeers1; j++) {
+        unsigned short swapped = htons(peers1[j].port);
+        rc = snprintf(buf + i, 2048 - i, "6:"); INC(i, rc, 2048);
+        COPY(buf, i, peers1[j].ip, 4, 2048);
+        COPY(buf, i, &swapped, 2, 2048);
+    }
+    for(j = 0; j < numpeers2; j++) {
+        unsigned short swapped = htons(peers2[j].port);
+        rc = snprintf(buf + i, 2048 - i, "6:"); INC(i, rc, 2048);
+        COPY(buf, i, peers2[j].ip, 4, 2048);
+        COPY(buf, i, &swapped, 2, 2048);
     }
     rc = snprintf(buf + i, 2048 - i, "e1:t%d:", tid_len); INC(i, rc, 2048);
     COPY(buf, i, tid, tid_len, 2048);
@@ -2080,8 +2092,9 @@ send_closest_nodes(int s, struct sockaddr *sa, int salen,
     if(b)
         numnodes = buffer_closest_nodes(nodes, numnodes, id, b);
 
-    return send_found_nodes(s, sa, salen, tid, tid_len,
+    return send_nodes_peers(s, sa, salen, tid, tid_len,
                             nodes, numnodes * 26,
+                            NULL, 0, NULL, 0,
                             token, token_len);
 }
 
@@ -2133,45 +2146,6 @@ send_announce_peer(int s, struct sockaddr *sa, int salen,
     rc = snprintf(buf + i, 512 - i, "1:y1:qe"); INC(i, rc, 512);
 
     return sendto(s, buf, i, confirm ? 0 : MSG_CONFIRM, sa, salen);
-
- fail:
-    errno = ENOSPC;
-    return -1;
-}
-
-int
-send_peers_found(int s, struct sockaddr *sa, int salen,
-                 unsigned char *tid, int tid_len,
-                 struct peer *peers1, int numpeers1,
-                 struct peer *peers2, int numpeers2,
-                 unsigned char *token, int token_len)
-{
-    char buf[1400];
-    int i = 0, rc, j;
-
-    rc = snprintf(buf + i, 1400 - i, "d1:rd2:id20:"); INC(i, rc, 1400);
-    COPY(buf, i, myid, 20, 1400);
-    rc = snprintf(buf + i, 1400 - i, "5:token%d:", token_len); INC(i, rc, 1400);
-    COPY(buf, i, token, token_len, 1400);
-    rc = snprintf(buf + i, 1400 - i, "6:valuesl"); INC(i, rc, 1400);
-    for(j = 0; j < numpeers1; j++) {
-        unsigned short swapped = htons(peers1[j].port);
-        rc = snprintf(buf + i, 1400 - i, "6:"); INC(i, rc, 1400);
-        COPY(buf, i, peers1[j].ip, 4, 1400);
-        COPY(buf, i, &swapped, 2, 1400);
-    }
-    for(j = 0; j < numpeers2; j++) {
-        unsigned short swapped = htons(peers2[j].port);
-        rc = snprintf(buf + i, 1400 - i, "6:"); INC(i, rc, 1400);
-        COPY(buf, i, peers2[j].ip, 4, 1400);
-        COPY(buf, i, &swapped, 2, 1400);
-    }
-    rc = snprintf(buf + i, 1400 - i, "ee1:t%d:", tid_len);
-    INC(i, rc, 1400);
-    COPY(buf, i, tid, tid_len, 1400);
-    ADD_V(buf, i, 512);
-    rc = snprintf(buf + i, 2048 - i, "1:y1:re"); INC(i, rc, 2048);
-    return sendto(s, buf, i, 0, sa, salen);
 
  fail:
     errno = ENOSPC;
