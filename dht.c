@@ -1647,31 +1647,29 @@ dht_periodic(int s, int available, time_t *tosleep,
                 break;
             } else {
                 struct storage *st = find_storage(info_hash);
+                unsigned char token[TOKEN_SIZE];
+                make_token((unsigned char*)&source.sin_addr,
+                           ntohs(source.sin_port),
+                           0, token);
                 if(st && st->numpeers > 0) {
                     int i0, n0, n1;
-                    unsigned char token[TOKEN_SIZE];
-                    make_token((unsigned char*)&source.sin_addr,
-                               ntohs(source.sin_port),
-                               0, token);
                     i0 = random() % st->numpeers;
                     /* We treat peers as a circular list, and choose 50
                        peers starting at i0. */
                     n0 = MIN(st->numpeers - i0, 50);
                     n1 = n0 >= 50 ? 0 : MIN(50, i0);
-
                     debugf("Sending found peers (%d).\n", n0 + n1);
-                    send_nodes_peers(s, (struct sockaddr*)&source,
-                                     sizeof(source), tid, tid_len,
-                                     NULL, 0,
-                                     st->peers + i0, n0,
-                                     st->peers, n1,
-                                     token, TOKEN_SIZE);
-
+                    /* According to the spec, we should not be sending any
+                       nodes in this case.  However, this avoids breaking
+                       searches if data is stored at the wrong place, and
+                       is also what libtorrent and uTorrent do. */
+                    send_closest_nodes(s, (struct sockaddr*)&source,
+                                       sizeof(source), tid, tid_len,
+                                       info_hash,
+                                       st->peers + i0, n0,
+                                       st->peers, n1,
+                                       token, TOKEN_SIZE);
                 } else {
-                    unsigned char token[TOKEN_SIZE];
-                    make_token((unsigned char*)&source.sin_addr,
-                               ntohs(source.sin_port),
-                               0, token);
                     debugf("Sending nodes for get_peers.\n");
                     send_closest_nodes(s, (struct sockaddr*)&source,
                                        sizeof(source),
