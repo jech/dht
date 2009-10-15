@@ -170,6 +170,8 @@ static int send_nodes_peers(int s, struct sockaddr *sa, int salen,
 static int send_closest_nodes(int s, struct sockaddr *sa, int salen,
                               const unsigned char *tid, int tid_len,
                               const unsigned char *id,
+                              struct peer *peers1, int numpeers1,
+                              struct peer *peers2, int numpeers2,
                               const unsigned char *token, int token_len);
 static int send_get_peers(int s, struct sockaddr *sa, int salen,
                           unsigned char *tid, int tid_len,
@@ -1634,7 +1636,8 @@ dht_periodic(int s, int available, time_t *tosleep,
             new_node(s, id, &source, 1);
             debugf("Sending closest nodes.\n");
             send_closest_nodes(s, (struct sockaddr*)&source, sizeof(source),
-                               tid, tid_len, target, NULL, 0);
+                               tid, tid_len, target,
+                               NULL, 0, NULL, 0, NULL, 0);
             break;
         case GET_PEERS:
             debugf("Get_peers!\n");
@@ -1673,6 +1676,7 @@ dht_periodic(int s, int available, time_t *tosleep,
                     send_closest_nodes(s, (struct sockaddr*)&source,
                                        sizeof(source),
                                        tid, tid_len, info_hash,
+                                       NULL, 0, NULL, 0,
                                        token, TOKEN_SIZE);
                 }
             }
@@ -2078,6 +2082,8 @@ int
 send_closest_nodes(int s, struct sockaddr *sa, int salen,
                    const unsigned char *tid, int tid_len,
                    const unsigned char *id,
+                   struct peer *peers1, int numpeers1,
+                   struct peer *peers2, int numpeers2,
                    const unsigned char *token, int token_len)
 {
     unsigned char nodes[8 * 26];
@@ -2094,7 +2100,7 @@ send_closest_nodes(int s, struct sockaddr *sa, int salen,
 
     return send_nodes_peers(s, sa, salen, tid, tid_len,
                             nodes, numnodes * 26,
-                            NULL, 0, NULL, 0,
+                            peers1, numpeers1, peers2, numpeers2,
                             token, token_len);
 }
 
