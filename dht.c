@@ -894,6 +894,10 @@ search_step(int s, struct search *sr, dht_callback *callback, void *closure)
                 unsigned char tid[4];
                 if(n->pinged >= 3)
                     continue;
+                /* A proposed extension to the protocol consists in
+                   omitting the token when storage tables are full. */
+                if(n->token_len == 0)
+                    continue;
                 if(!n->acked) {
                     all_acked = 0;
                     debugf("Sending announce_peer.\n");
