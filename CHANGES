@@ -1,3 +1,12 @@
+dht-0.10: unreleased
+
+  * Send nodes even when sending values.  This is a violation of the
+    protocol, but I have been assured that it doesn't break any deployed
+    implementation.  This is also what both libtorrent and uTorrent do.
+  * Give up immediately on a search peer when no token was provided.  This
+    is a very reasonable extension to the protocol, and certainly doesn't
+    break anything.
+
 20 September 2009: dht-0.9
 
   * Fixed incorrect computation of number of nodes.
