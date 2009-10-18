@@ -1,4 +1,4 @@
-dht-0.10: unreleased
+18 October 2009: dht-0.10
 
   * Send nodes even when sending values.  This is a violation of the
     protocol, but I have been assured that it doesn't break any deployed
