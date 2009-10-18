@@ -6,6 +6,7 @@ dht-0.10: unreleased
   * Give up immediately on a search peer when no token was provided.  This
     is a very reasonable extension to the protocol, and certainly doesn't
     break anything.
+  * Parse heterogeneous values lists correctly.  This is mandated by BEP 32.
 
 20 September 2009: dht-0.9
 
