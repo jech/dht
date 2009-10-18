@@ -2312,13 +2312,26 @@ parse_message(const unsigned char *buf, int buflen,
         if(p) {
             int i = p - buf + 9;
             int j = 0;
-            while(buf[i] == '6' && buf[i + 1] == ':' && i + 8 < buflen) {
-                if(j + 6 > *values_len)
+            while(1) {
+                long l;
+                char *q;
+                l = strtol((char*)buf + i, &q, 10);
+                if(q && *q == ':' && l > 0) {
+                    CHECK(q + 1, l);
+                    if(j + l > *values_len)
+                        break;
+                    i = q + 1 + l - (char*)buf;
+                    /* BEP 32 allows heterogeneous values -- ignore IPv6 */
+                    if(l != 6) {
+                        debugf("Received weird value -- %d bytes.\n",
+                               (int)l);
+                        continue;
+                    }
+                    memcpy((char*)values_return + j, q + 1, l);
+                    j += l;
+                } else {
                     break;
-                CHECK(buf + i + 2, 6);
-                memcpy((char*)values_return + j, buf + i + 2, 6);
-                i += 8;
-                j += 6;
+                }
             }
             if(i >= buflen || buf[i] != 'e')
                 debugf("eek... unexpected end for values.\n");
