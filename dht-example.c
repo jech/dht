@@ -92,21 +92,23 @@ int
 main(int argc, char **argv)
 {
     int i, rc, fd;
-    int s, s6, port;
+    int s = -1, s6 = -1, port;
     int have_id = 0;
     unsigned char myid[20];
     time_t tosleep = 0;
     char *id_file = "dht_example.id";
     int opt;
-    int quiet = 0;
+    int quiet = 0, ipv4 = 1, ipv6 = 1;
 
     while(1) {
-        opt = getopt(argc, argv, "q");
+        opt = getopt(argc, argv, "q46");
         if(opt < 0)
             break;
 
         switch(opt) {
         case 'q': quiet = 1; break;
+        case '4': ipv6 = 0; break;
+        case '6': ipv4 = 0; break;
         default:
             goto usage;
         }
@@ -192,18 +194,24 @@ main(int argc, char **argv)
     /* We need an IPv4 and an IPv6 socket, bound to a stable port.  Rumour
        has it that uTorrent works better when it is the same as your
        Bittorrent port. */
-    s = socket(PF_INET, SOCK_DGRAM, 0);
-    if(s < 0) {
-        perror("socket(IPv4)");
+    if(ipv4) {
+        s = socket(PF_INET, SOCK_DGRAM, 0);
+        if(s < 0) {
+            perror("socket(IPv4)");
+        }
     }
 
-    s6 = socket(PF_INET6, SOCK_DGRAM, 0);
-    if(s < 0) {
-        perror("socket(IPv6)");
+    if(ipv6) {
+        s6 = socket(PF_INET6, SOCK_DGRAM, 0);
+        if(s < 0) {
+            perror("socket(IPv6)");
+        }
     }
 
-    if(s < 0 && s6 < 0)
+    if(s < 0 && s6 < 0) {
+        fprintf(stderr, "Eek!");
         exit(1);
+    }
 
 
     if(s >= 0) {
