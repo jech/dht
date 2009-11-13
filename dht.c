@@ -375,6 +375,9 @@ find_bucket(unsigned const char *id, int af)
 {
     struct bucket *b = af == AF_INET ? buckets : buckets6;
 
+    if(b == NULL)
+        return NULL;
+
     while(1) {
         if(b->next == NULL)
             return b;
@@ -410,6 +413,7 @@ find_node(const unsigned char *id, int af)
 
     if(b == NULL)
         return NULL;
+
     n = b->nodes;
     while(n) {
         if(id_cmp(n->id, id) == 0)
@@ -481,6 +485,9 @@ static struct node *
 insert_node(struct node *node)
 {
     struct bucket *b = find_bucket(node->id, node->ss.ss_family);
+
+    if(b == NULL)
+        return NULL;
 
     node->next = b->nodes;
     b->nodes = node;
@@ -595,10 +602,15 @@ new_node(const unsigned char *id, struct sockaddr *sa, int salen, int confirm)
 {
     struct bucket *b = find_bucket(id, sa->sa_family);
     struct node *n;
-    int mybucket = in_bucket(myid, b);
+    int mybucket;
+
+    if(b == NULL)
+        return NULL;
 
     if(id_cmp(id, myid) == 0)
         return NULL;
+
+    mybucket = in_bucket(myid, b);
 
     if(confirm == 2)
         b->time = now.tv_sec;
@@ -1031,7 +1043,12 @@ dht_search(const unsigned char *id, int port, int af,
            dht_callback *callback, void *closure)
 {
     struct search *sr;
-    struct bucket *b;
+    struct bucket *b = find_bucket(id, af);
+
+    if(b == NULL) {
+        errno = EAFNOSUPPORT;
+        return -1;
+    }
 
     sr = searches;
     while(sr) {
@@ -1075,7 +1092,6 @@ dht_search(const unsigned char *id, int port, int af,
 
     sr->port = port;
 
-    b = find_bucket(id, af);
     insert_search_bucket(b, sr);
 
     if(sr->numnodes < SEARCH_NODES) {
@@ -1591,12 +1607,15 @@ static int
 neighbourhood_maintenance(int af)
 {
     unsigned char id[20];
-    struct bucket *b, *q;
+    struct bucket *b = find_bucket(myid, af);
+    struct bucket *q;
     struct node *n;
+
+    if(b == NULL)
+        return -1;
 
     memcpy(id, myid, 20);
     id[19] = random() % 0xFF;
-    b = find_bucket(myid, af);
     q = b;
     if(q->next && (q->count == 0 || random() % 7 == 0))
         q = b->next;
@@ -2030,7 +2049,7 @@ dht_periodic(int available, time_t *tosleep,
             *tosleep = search_time - now.tv_sec;
     }
 
-    return find_bucket(myid, AF_INET)->count > 2;
+    return 1;
 }
 
 int
@@ -2046,6 +2065,9 @@ dht_get_nodes(struct sockaddr_in *sin, int *num,
     /* For restoring to work without discarding too many nodes, the list
        must start with the contents of our bucket. */
     b = find_bucket(myid, AF_INET);
+    if(b == NULL)
+        goto no_ipv4;
+
     n = b->nodes;
     while(n && i < *num) {
         if(node_good(n)) {
@@ -2070,9 +2092,14 @@ dht_get_nodes(struct sockaddr_in *sin, int *num,
         b = b->next;
     }
 
+ no_ipv4:
+
     j = 0;
 
     b = find_bucket(myid, AF_INET6);
+    if(b == NULL)
+        goto no_ipv6;
+
     n = b->nodes;
     while(n && j < *num6) {
         if(node_good(n)) {
@@ -2096,6 +2123,8 @@ dht_get_nodes(struct sockaddr_in *sin, int *num,
         }
         b = b->next;
     }
+
+ no_ipv6:
 
     *num = i;
     *num6 = j;
@@ -2379,22 +2408,27 @@ send_closest_nodes(struct sockaddr *sa, int salen,
 
     if((want & WANT4)) {
         b = find_bucket(id, AF_INET);
-        numnodes = buffer_closest_nodes(nodes, numnodes, id, b);
-        if(b->next)
-            numnodes = buffer_closest_nodes(nodes, numnodes, id, b->next);
-        b = previous_bucket(b);
-        if(b)
+        if(b) {
             numnodes = buffer_closest_nodes(nodes, numnodes, id, b);
+            if(b->next)
+                numnodes = buffer_closest_nodes(nodes, numnodes, id, b->next);
+            b = previous_bucket(b);
+            if(b)
+                numnodes = buffer_closest_nodes(nodes, numnodes, id, b);
+        }
     }
 
     if((want & WANT6)) {
         b = find_bucket(id, AF_INET6);
-        numnodes6 = buffer_closest_nodes(nodes6, numnodes6, id, b);
-        if(b->next)
-            numnodes6 = buffer_closest_nodes(nodes6, numnodes6, id, b->next);
-        b = previous_bucket(b);
-        if(b)
+        if(b) {
             numnodes6 = buffer_closest_nodes(nodes6, numnodes6, id, b);
+            if(b->next)
+                numnodes6 =
+                    buffer_closest_nodes(nodes6, numnodes6, id, b->next);
+            b = previous_bucket(b);
+            if(b)
+                numnodes6 = buffer_closest_nodes(nodes6, numnodes6, id, b);
+        }
     }
 
     return send_nodes_peers(sa, salen, tid, tid_len,
