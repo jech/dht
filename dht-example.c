@@ -96,11 +96,12 @@ main(int argc, char **argv)
     int have_id = 0;
     unsigned char myid[20];
     time_t tosleep = 0;
+    char *id_file = "dht_example.id";
 
     /* Ids need to be distributed evenly, so you cannot just use your
        bittorrent id.  Either generate it randomly, or take the SHA-1 of
        something. */
-    fd = open("dht-example.id", O_RDONLY);
+    fd = open(id_file, O_RDONLY);
     if(fd >= 0) {
         rc = read(fd, myid, 20);
         if(rc == 20)
