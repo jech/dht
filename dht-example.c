@@ -98,13 +98,15 @@ main(int argc, char **argv)
     time_t tosleep = 0;
     char *id_file = "dht_example.id";
     int opt;
+    int quiet = 0;
 
     while(1) {
-        opt = getopt(argc, argv, "");
+        opt = getopt(argc, argv, "q");
         if(opt < 0)
             break;
 
         switch(opt) {
+        case 'q': quiet = 1; break;
         default:
             goto usage;
         }
@@ -184,7 +186,8 @@ main(int argc, char **argv)
 
     /* If you set dht_debug to a stream, every action taken by the DHT will
        be logged. */
-    dht_debug = stdout;
+    if(!quiet)
+        dht_debug = stdout;
 
     /* We need an IPv4 and an IPv6 socket, bound to a stable port.  Rumour
        has it that uTorrent works better when it is the same as your
