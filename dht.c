@@ -1612,8 +1612,8 @@ neighbourhood_maintenance(int af)
         n = random_node(q);
         if(n) {
             unsigned char tid[4];
-            debugf("Sending find_node "
-                   "for neighborhood maintenance.\n");
+            debugf("Sending find_node for%s neighborhood maintenance.\n",
+                   af == AF_INET6 ? " IPv6" : "");
             make_tid(tid, "fn", 0);
             send_find_node((struct sockaddr*)&n->ss, n->sslen,
                            tid, 4, id, want,
@@ -1672,8 +1672,8 @@ bucket_maintenance(int af)
                             want = WANT4 | WANT6;
                     }
 
-                    debugf("Sending find_node "
-                           "for bucket maintenance.\n");
+                    debugf("Sending find_node for%s bucket maintenance.\n",
+                           af == AF_INET6 ? " IPv6" : "");
                     make_tid(tid, "fn", 0);
                     send_find_node((struct sockaddr*)&n->ss, n->sslen,
                                    tid, 4, id, want,
