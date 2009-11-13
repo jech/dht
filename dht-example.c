@@ -97,6 +97,18 @@ main(int argc, char **argv)
     unsigned char myid[20];
     time_t tosleep = 0;
     char *id_file = "dht_example.id";
+    int opt;
+
+    while(1) {
+        opt = getopt(argc, argv, "");
+        if(opt < 0)
+            break;
+
+        switch(opt) {
+        default:
+            goto usage;
+        }
+    }
 
     /* Ids need to be distributed evenly, so you cannot just use your
        bittorrent id.  Either generate it randomly, or take the SHA-1 of
@@ -135,7 +147,7 @@ main(int argc, char **argv)
     if(argc < 2)
         goto usage;
 
-    i = 1;
+    i = optind;
 
     if(argc < i + 1)
         goto usage;
