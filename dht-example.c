@@ -20,7 +20,7 @@
 #include "dht.h"
 
 #define MAX_BOOTSTRAP_NODES 20
-static struct sockaddr_in bootstrap_nodes[MAX_BOOTSTRAP_NODES];
+static struct sockaddr_storage bootstrap_nodes[MAX_BOOTSTRAP_NODES];
 static int num_bootstrap_nodes = 0;
 
 static volatile sig_atomic_t dumping = 0, searching = 0, exiting = 0;
@@ -92,7 +92,7 @@ int
 main(int argc, char **argv)
 {
     int i, rc, fd;
-    int s, port;
+    int s, s6, port;
     int have_id = 0;
     unsigned char myid[20];
     time_t tosleep = 0;
@@ -146,9 +146,8 @@ main(int argc, char **argv)
     while(i < argc) {
         struct addrinfo hints, *info, *infop;
         memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_INET;
         hints.ai_socktype = SOCK_DGRAM;
-        rc = getaddrinfo(argv[i], NULL, &hints, &info);
+        rc = getaddrinfo(argv[i], argv[i + 1], &hints, &info);
         if(rc != 0) {
             fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rc));
             exit(1);
@@ -160,14 +159,10 @@ main(int argc, char **argv)
 
         infop = info;
         while(infop) {
-            if(infop->ai_addr->sa_family == AF_INET) {
-                struct sockaddr_in sin;
-                memcpy(&sin, infop->ai_addr, infop->ai_addrlen);
-                sin.sin_port = htons(atoi(argv[i]));
-                bootstrap_nodes[num_bootstrap_nodes] = sin;
-                num_bootstrap_nodes++;
-            }
+            memcpy(&bootstrap_nodes[num_bootstrap_nodes],
+                   infop->ai_addr, infop->ai_addrlen);
             infop = infop->ai_next;
+            num_bootstrap_nodes++;
         }
         freeaddrinfo(info);
 
@@ -178,28 +173,62 @@ main(int argc, char **argv)
        be logged. */
     dht_debug = stdout;
 
-    /* We need an IPv4 socket, bound to a stable port.  Rumour has it that
-       uTorrent works better when it is the same as your Bittorrent port. */
+    /* We need an IPv4 and an IPv6 socket, bound to a stable port.  Rumour
+       has it that uTorrent works better when it is the same as your
+       Bittorrent port. */
     s = socket(PF_INET, SOCK_DGRAM, 0);
     if(s < 0) {
-        perror("socket");
-        exit(1);
+        perror("socket(IPv4)");
     }
 
-    {
+    s6 = socket(PF_INET6, SOCK_DGRAM, 0);
+    if(s < 0) {
+        perror("socket(IPv6)");
+    }
+
+    if(s < 0 && s6 < 0)
+        exit(1);
+
+
+    if(s >= 0) {
         struct sockaddr_in sin;
         memset(&sin, 0, sizeof(sin));
         sin.sin_family = AF_INET;
         sin.sin_port = htons(port);
         rc = bind(s, (struct sockaddr*)&sin, sizeof(sin));
         if(rc < 0) {
-            perror("bind");
+            perror("bind(IPv4)");
+            exit(1);
+        }
+    }
+
+    if(s6 >= 0) {
+        struct sockaddr_in6 sin6;
+        int rc;
+        int val = 1;
+
+        rc = setsockopt(s6, IPPROTO_IPV6, IPV6_V6ONLY,
+                        (char *)&val, sizeof(val));
+        if(rc < 0) {
+            perror("setsockopt(IPV6_V6ONLY)");
+            exit(1);
+        }
+
+        /* BEP-32 actually mandates that we should bind this socket to one
+           of our global IPv6 addresses.  Never mind for this example. */
+
+        memset(&sin6, 0, sizeof(sin6));
+        sin6.sin6_family = AF_INET6;
+        sin6.sin6_port = htons(port);
+        rc = bind(s6, (struct sockaddr*)&sin6, sizeof(sin6));
+        if(rc < 0) {
+            perror("bind(IPv6)");
             exit(1);
         }
     }
 
     /* Init the dht.  This sets the socket into non-blocking mode. */
-    rc = dht_init(s, -1, myid, NULL);
+    rc = dht_init(s, s6, myid, NULL);
     if(rc < 0) {
         perror("dht_init");
         exit(1);
@@ -229,8 +258,11 @@ main(int argc, char **argv)
         tv.tv_usec = random() % 1000000;
 
         FD_ZERO(&readfds);
-        FD_SET(s, &readfds);
-        rc = select(s + 1, &readfds, NULL, NULL, &tv);
+        if(s >= 0)
+            FD_SET(s, &readfds);
+        if(s6 >= 0)
+            FD_SET(s6, &readfds);
+        rc = select(s > s6 ? s + 1 : s6 + 1, &readfds, NULL, NULL, &tv);
         if(rc < 0) {
             if(errno != EINTR) {
                 perror("select");
@@ -254,11 +286,14 @@ main(int argc, char **argv)
         }
 
         /* This is how you trigger a search for a torrent hash.  If port
-           (the third argument) is non-zero, it also performs an announce.
+           (the second argument) is non-zero, it also performs an announce.
            Since peers expire announced data after 30 minutes, it's a good
            idea to reannounce every 28 minutes or so. */
         if(searching) {
-            dht_search(hash, 0, AF_INET, callback, NULL);
+            if(s >= 0)
+                dht_search(hash, 0, AF_INET, callback, NULL);
+            if(s6 >= 0)
+                dht_search(hash, 0, AF_INET6, callback, NULL);
             searching = 0;
         }
 
