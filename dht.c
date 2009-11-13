@@ -1454,10 +1454,6 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
         return -1;
     }
 
-    buckets = calloc(sizeof(struct bucket), 1);
-    if(buckets == NULL)
-        return -1;
-
     searches = NULL;
     numsearches = 0;
 
