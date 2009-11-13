@@ -1,3 +1,7 @@
+dht-0.11 (unreleased)
+
+  * Implement IPv6 support (BEP-32).
+
 18 October 2009: dht-0.10
 
   * Send nodes even when sending values.  This is a violation of the
