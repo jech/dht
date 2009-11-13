@@ -199,7 +199,7 @@ main(int argc, char **argv)
     }
 
     /* Init the dht.  This sets the socket into non-blocking mode. */
-    rc = dht_init(s, myid, NULL);
+    rc = dht_init(s, -1, myid, NULL);
     if(rc < 0) {
         perror("dht_init");
         exit(1);
@@ -217,7 +217,8 @@ main(int argc, char **argv)
        a dump) and you already know their ids, it's better to use
        dht_insert_node.  If the ids are incorrect, the DHT will recover. */
     for(i = 0; i < num_bootstrap_nodes; i++) {
-        dht_ping_node(s, &bootstrap_nodes[i]);
+        dht_ping_node((struct sockaddr*)&bootstrap_nodes[i],
+                      sizeof(bootstrap_nodes[i]));
         usleep(random() % 100000);
     }
 
@@ -240,7 +241,7 @@ main(int argc, char **argv)
         if(exiting)
             break;
 
-        rc = dht_periodic(s, rc > 0, &tosleep, callback, NULL);
+        rc = dht_periodic(rc > 0, &tosleep, callback, NULL);
         if(rc < 0) {
             if(errno == EINTR) {
                 continue;
@@ -257,7 +258,7 @@ main(int argc, char **argv)
            Since peers expire announced data after 30 minutes, it's a good
            idea to reannounce every 28 minutes or so. */
         if(searching) {
-            dht_search(s, hash, 0, callback, NULL);
+            dht_search(hash, 0, AF_INET, callback, NULL);
             searching = 0;
         }
 
@@ -269,13 +270,14 @@ main(int argc, char **argv)
     }
 
     {
-        struct sockaddr_in sins[500];
+        struct sockaddr_in sin[500];
+        int num = 500, num6 = 0;
         int i;
-        i = dht_get_nodes(sins, 500);
-        printf("Found %d good nodes.\n", i);
+        i = dht_get_nodes(sin, &num, NULL, &num6);
+        printf("Found %d (%d) good nodes.\n", i, num);
     }
 
-    dht_uninit(s, 1);
+    dht_uninit(1);
     return 0;
     
  usage:
