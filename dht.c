@@ -1990,6 +1990,9 @@ dht_periodic(int available, time_t *tosleep,
                 break;
             }
             storage_store(info_hash, source);
+            /* Note that if storage_store failed, we lie to the requestor.
+               This is to prevent them from backtracking, and hence
+               polluting the DHT. */
             debugf("Sending peer announced.\n");
             send_peer_announced(source, sourcelen, tid, tid_len);
         }
