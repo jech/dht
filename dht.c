@@ -952,7 +952,7 @@ search_step(struct search *sr, dht_callback *callback, void *closure)
                    I don't think this makes a lot of sense -- just sending
                    a positive reply is just as good, let's deal with it. */
                 if(n->token_len == 0)
-                    continue;
+                    n->acked = 1;
                 if(!n->acked) {
                     all_acked = 0;
                     debugf("Sending announce_peer.\n");
