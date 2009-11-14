@@ -142,6 +142,11 @@ struct peer {
 #define DHT_MAX_PEERS 2048
 #endif
 
+/* The maximum number of hashes we're willing to track. */
+#ifndef DHT_MAX_HASHES
+#define DHT_MAX_HASHES 16384
+#endif
+
 /* The maximum number of searches we keep data about. */
 #ifndef DHT_MAX_SEARCHES
 #define DHT_MAX_SEARCHES 1024
@@ -232,6 +237,7 @@ static unsigned char oldsecret[8];
 static struct bucket *buckets = NULL;
 static struct bucket *buckets6 = NULL;
 static struct storage *storage;
+static int numstorage;
 
 static struct search *searches = NULL;
 static int numsearches;
@@ -1136,11 +1142,14 @@ storage_store(const unsigned char *id, struct sockaddr *sa)
     st = find_storage(id);
 
     if(st == NULL) {
+        if(numstorage >= DHT_MAX_HASHES)
+            return -1;
         st = calloc(1, sizeof(struct storage));
         if(st == NULL) return -1;
         memcpy(st->id, id, 20);
         st->next = storage;
         storage = st;
+        numstorage++;
     }
 
     if(sa->sa_family == AF_INET) {
@@ -1216,6 +1225,11 @@ expire_storage(void)
                 st = previous->next;
             else
                 st = storage;
+            numstorage--;
+            if(numstorage < 0) {
+                debugf("Eek... numstorage became negative.\n");
+                numstorage = 0;
+            }
         } else {
             previous = st;
             st = st->next;
@@ -1474,6 +1488,7 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
     numsearches = 0;
 
     storage = NULL;
+    numstorage = 0;
 
     if(s >= 0) {
         buckets = calloc(sizeof(struct bucket), 1);
