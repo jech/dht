@@ -1171,9 +1171,9 @@ storage_store(const unsigned char *id, struct sockaddr *sa)
             /* Need to expand the array. */
             struct peer *new_peers;
             int n;
-            if(st->maxpeers > DHT_MAX_PEERS / 2)
-                return 0;
+            if(st->maxpeers >= DHT_MAX_PEERS)
             n = st->maxpeers == 0 ? 2 : 2 * st->maxpeers;
+            n = MIN(n, DHT_MAX_PEERS);
             new_peers = realloc(st->peers, n * sizeof(struct peer));
             if(new_peers == NULL)
                 return -1;
