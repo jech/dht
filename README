@@ -19,14 +19,18 @@ Initialisation
 * dht_init
 
 This must be called before using the library.  You pass it a bound IPv4
-datagram socket, and your node id, a 20-octet array that should be globally
-unique.
+datagram socket, a bound IPv6 datagram socket, and your node id, a 20-octet
+array that should be globally unique.
+
+If you're on a multi-homed host, you should bind the sockets to one of your
+addresses.
 
 Node ids must be well distributed, so you cannot just use your Bittorrent
 id; you should either generate a truly random value (using plenty of
 entropy), or at least take the SHA-1 of something.  However, it is a good
 idea to keep the id stable, so you may want to store it in stable storage
 at client shutdown.
+
  
 * dht_uninit
 
