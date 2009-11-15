@@ -3,6 +3,7 @@ dht-0.11 (unreleased)
   * Implement IPv6 support (BEP-32).
   * Limit the number of hashes that we're willing to track.
   * Fix a bug which could cause us to never mark a search as finished.
+  * Send version "JC\0\0" when using dht-example.
 
 18 October 2009: dht-0.10
 
