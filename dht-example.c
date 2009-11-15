@@ -330,7 +330,7 @@ main(int argc, char **argv)
 
     {
         struct sockaddr_in sin[500];
-        struct sockaddr_in sin6[500];
+        struct sockaddr_in6 sin6[500];
         int num = 500, num6 = 500;
         int i;
         i = dht_get_nodes(sin, &num, sin6, &num6);
