@@ -361,7 +361,8 @@ main(int argc, char **argv)
     return 0;
     
  usage:
-    fprintf(stderr, "Foo!\n");
+    printf("Usage: dht-example [-q] [-4] [-6] [-b address]...\n"
+           "                   port [address port]...\n");
     exit(1);
 }
 
