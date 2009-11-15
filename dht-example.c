@@ -99,9 +99,19 @@ main(int argc, char **argv)
     char *id_file = "dht-example.id";
     int opt;
     int quiet = 0, ipv4 = 1, ipv6 = 1;
+    struct sockaddr_in sin;
+    struct sockaddr_in6 sin6;
+
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+
+    memset(&sin6, 0, sizeof(sin6));
+    sin6.sin6_family = AF_INET6;
+
+
 
     while(1) {
-        opt = getopt(argc, argv, "q46");
+        opt = getopt(argc, argv, "q46b:");
         if(opt < 0)
             break;
 
@@ -109,6 +119,21 @@ main(int argc, char **argv)
         case 'q': quiet = 1; break;
         case '4': ipv6 = 0; break;
         case '6': ipv4 = 0; break;
+        case 'b': {
+            char buf[16];
+            int rc;
+            rc = inet_pton(AF_INET, optarg, buf);
+            if(rc == 1) {
+                memcpy(&sin.sin_addr, buf, 4);
+                break;
+            }
+            rc = inet_pton(AF_INET6, optarg, buf);
+            if(rc == 1) {
+                memcpy(&sin6.sin6_addr, buf, 16);
+                break;
+            }
+            goto usage;
+        }
         default:
             goto usage;
         }
@@ -215,9 +240,6 @@ main(int argc, char **argv)
 
 
     if(s >= 0) {
-        struct sockaddr_in sin;
-        memset(&sin, 0, sizeof(sin));
-        sin.sin_family = AF_INET;
         sin.sin_port = htons(port);
         rc = bind(s, (struct sockaddr*)&sin, sizeof(sin));
         if(rc < 0) {
@@ -227,7 +249,6 @@ main(int argc, char **argv)
     }
 
     if(s6 >= 0) {
-        struct sockaddr_in6 sin6;
         int rc;
         int val = 1;
 
@@ -238,11 +259,10 @@ main(int argc, char **argv)
             exit(1);
         }
 
-        /* BEP-32 actually mandates that we should bind this socket to one
-           of our global IPv6 addresses.  Never mind for this example. */
+        /* BEP-32 mandates that we should bind this socket to one of our
+           global IPv6 addresses.  In this simple example, this only
+           happens if the user used the -b flag. */
 
-        memset(&sin6, 0, sizeof(sin6));
-        sin6.sin6_family = AF_INET6;
         sin6.sin6_port = htons(port);
         rc = bind(s6, (struct sockaddr*)&sin6, sizeof(sin6));
         if(rc < 0) {
