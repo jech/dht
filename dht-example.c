@@ -96,7 +96,7 @@ main(int argc, char **argv)
     int have_id = 0;
     unsigned char myid[20];
     time_t tosleep = 0;
-    char *id_file = "dht_example.id";
+    char *id_file = "dht-example.id";
     int opt;
     int quiet = 0, ipv4 = 1, ipv6 = 1;
 
@@ -139,11 +139,11 @@ main(int argc, char **argv)
         have_id = 1;
         close(fd);
 
-        fd = open("dht-example.id", O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        fd = open(id_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
         if(fd >= 0) {
             rc = write(fd, myid, 20);
             if(rc < 20)
-                unlink("dht-example.id");
+                unlink(id_file);
             close(fd);
         }
     }
