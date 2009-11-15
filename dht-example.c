@@ -252,7 +252,7 @@ main(int argc, char **argv)
     }
 
     /* Init the dht.  This sets the socket into non-blocking mode. */
-    rc = dht_init(s, s6, myid, NULL);
+    rc = dht_init(s, s6, myid, (unsigned char*)"JC\0\0");
     if(rc < 0) {
         perror("dht_init");
         exit(1);
