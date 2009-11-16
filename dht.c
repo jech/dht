@@ -2368,7 +2368,7 @@ insert_closest_node(unsigned char *nodes, int numnodes,
         abort();
 
     for(i = 0; i< numnodes; i++) {
-        if(id_cmp(nodes + size * i, id) == 0)
+        if(id_cmp(n->id, nodes + size * i) == 0)
             return numnodes;
         if(xorcmp(n->id, nodes + size * i, id) < 0)
             break;
