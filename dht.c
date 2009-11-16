@@ -1636,7 +1636,7 @@ neighbourhood_maintenance(int af)
         return -1;
 
     memcpy(id, myid, 20);
-    id[19] = random() % 0xFF;
+    id[19] = random() & 0xFF;
     q = b;
     if(q->next && (q->count == 0 || random() % 7 == 0))
         q = b->next;
@@ -1709,6 +1709,14 @@ bucket_maintenance(int af)
                         otherbucket =
                             find_bucket(id, af == AF_INET ? AF_INET6 : AF_INET);
                         if(otherbucket && otherbucket->count < 8)
+                            /* The corresponding bucket in the other family
+                               is emptyish -- querying both is useful. */
+                            want = WANT4 | WANT6;
+                        else if(random() % 37 == 0)
+                            /* Most of the time, this just adds overhead.
+                               However, it might help stitch back one of
+                               the DHTs after a network collapse, so query
+                               both, but only very occasionally. */
                             want = WANT4 | WANT6;
                     }
 
