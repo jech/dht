@@ -1974,7 +1974,7 @@ dht_periodic(int available, time_t *tosleep,
                                         token, TOKEN_SIZE);
                 } else {
                     debugf("Sending nodes for get_peers.\n");
-                    send_closest_nodes(source, sizeof(source),
+                    send_closest_nodes(source, sourcelen,
                                        tid, tid_len, info_hash, want,
                                        0, NULL, token, TOKEN_SIZE);
                 }
