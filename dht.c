@@ -539,18 +539,18 @@ tid_match(const unsigned char *tid, const char *prefix,
 static int
 send_cached_ping(struct bucket *b)
 {
+    unsigned char tid[4];
     int rc;
     /* We set family to 0 when there's no cached node. */
-    if(b->cached.ss_family == AF_INET) {
-        unsigned char tid[4];
-        debugf("Sending ping to cached node.\n");
-        make_tid(tid, "pn", 0);
-        rc = send_ping((struct sockaddr*)&b->cached, b->cachedlen, tid, 4);
-        b->cached.ss_family = 0;
-        b->cachedlen = 0;
-        return rc;
-    }
-    return 0;
+    if(b->cached.ss_family == 0)
+        return 0;
+
+    debugf("Sending ping to cached node.\n");
+    make_tid(tid, "pn", 0);
+    rc = send_ping((struct sockaddr*)&b->cached, b->cachedlen, tid, 4);
+    b->cached.ss_family = 0;
+    b->cachedlen = 0;
+    return rc;
 }
 
 /* Split a bucket into two equal parts. */
