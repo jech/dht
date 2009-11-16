@@ -2713,6 +2713,7 @@ parse_message(const unsigned char *buf, int buflen,
                         j6 += l;
                     } else {
                         debugf("Received weird value -- %d bytes.\n", (int)l);
+                        i = q + 1 + l - (char*)buf;
                     }
                 } else {
                     break;
