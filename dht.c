@@ -1674,9 +1674,9 @@ bucket_maintenance(int af)
     while(b) {
         struct bucket *q;
         if(b->time < now.tv_sec - 600) {
-            /* This bucket hasn't seen any activity for a long
-               time.  Pick a random id in this bucket's range, and
-               send a request to a random node. */
+            /* This bucket hasn't seen any positive confirmation for a long
+               time.  Pick a random id in this bucket's range, and send
+               a request to a random node. */
             unsigned char id[20];
             struct node *n;
             int rc;
