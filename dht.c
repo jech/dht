@@ -2453,6 +2453,7 @@ send_closest_nodes(struct sockaddr *sa, int salen,
                 numnodes6 = buffer_closest_nodes(nodes6, numnodes6, id, b);
         }
     }
+    debugf("  (%d+%d nodes.)\n", numnodes, numnodes6);
 
     return send_nodes_peers(sa, salen, tid, tid_len,
                             nodes, numnodes * 26,
