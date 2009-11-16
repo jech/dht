@@ -1638,9 +1638,9 @@ neighbourhood_maintenance(int af)
     memcpy(id, myid, 20);
     id[19] = random() & 0xFF;
     q = b;
-    if(q->next && (q->count == 0 || random() % 7 == 0))
+    if(q->next && (q->count == 0 || (random() & 7) == 0))
         q = b->next;
-    if(q->count == 0 || random() % 7 == 0) {
+    if(q->count == 0 || (random() & 7) == 0) {
         struct bucket *r;
         r = previous_bucket(b);
         if(r && r->count > 0)
