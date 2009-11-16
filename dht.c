@@ -1686,9 +1686,9 @@ bucket_maintenance(int af)
                 memcpy(id, b->first, 20);
 
             q = b;
-            /* If the bucket is empty, we try to fill it from
-               a neighbour.  We also sometimes do it gratuitiously
-               to recover from buckets full of broken nodes. */
+            /* If the bucket is empty, we try to fill it from a neighbour.
+               We also sometimes do it gratuitiously to recover from
+               buckets full of broken nodes. */
             if(q->next && (q->count == 0 || random() % 7 == 0))
                 q = b->next;
             if(q->count == 0 || random() % 7 == 0) {
