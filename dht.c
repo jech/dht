@@ -1183,6 +1183,7 @@ storage_store(const unsigned char *id, struct sockaddr *sa)
             struct peer *new_peers;
             int n;
             if(st->maxpeers >= DHT_MAX_PEERS)
+                return 0;
             n = st->maxpeers == 0 ? 2 : 2 * st->maxpeers;
             n = MIN(n, DHT_MAX_PEERS);
             new_peers = realloc(st->peers, n * sizeof(struct peer));
