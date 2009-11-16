@@ -1689,9 +1689,9 @@ bucket_maintenance(int af)
             /* If the bucket is empty, we try to fill it from a neighbour.
                We also sometimes do it gratuitiously to recover from
                buckets full of broken nodes. */
-            if(q->next && (q->count == 0 || random() % 7 == 0))
+            if(q->next && (q->count == 0 || (random() & 7) == 0))
                 q = b->next;
-            if(q->count == 0 || random() % 7 == 0) {
+            if(q->count == 0 || (random() & 7) == 0) {
                 struct bucket *r;
                 r = previous_bucket(b);
                 if(r && r->count > 0)
