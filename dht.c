@@ -1393,7 +1393,10 @@ dump_bucket(FILE *f, struct bucket *b)
             port = 0;
         }
 
-        fprintf(f, " %s:%d ", buf, port);
+        if(n->ss.ss_family == AF_INET6)
+            fprintf(f, " [%s]:%d ", buf, port);
+        else
+            fprintf(f, " %s:%d ", buf, port);
         if(n->time != n->reply_time)
             fprintf(f, "age %ld, %ld",
                     (long)(now.tv_sec - n->time),
