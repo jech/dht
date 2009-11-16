@@ -154,12 +154,15 @@ main(int argc, char **argv)
         close(fd);
     }
     
+    fd = open("/dev/urandom", O_RDONLY);
+    if(fd < 0) {
+        perror("open(random)");
+        exit(1);
+    }
+
     if(!have_id) {
-        fd = open("/dev/urandom", O_RDONLY);
-        if(fd < 0) {
-            perror("open(random)");
-            exit(1);
-        }
+        int ofd;
+
         rc = read(fd, myid, 20);
         if(rc < 0) {
             perror("read(random)");
@@ -168,14 +171,22 @@ main(int argc, char **argv)
         have_id = 1;
         close(fd);
 
-        fd = open(id_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-        if(fd >= 0) {
-            rc = write(fd, myid, 20);
+        ofd = open(id_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        if(ofd >= 0) {
+            rc = write(ofd, myid, 20);
             if(rc < 20)
                 unlink(id_file);
-            close(fd);
+            close(ofd);
         }
     }
+
+    {
+        unsigned seed;
+        read(fd, &seed, sizeof(seed));
+        srandom(seed);
+    }
+
+    close(fd);
 
     if(argc < 2)
         goto usage;
