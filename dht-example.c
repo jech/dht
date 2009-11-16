@@ -111,7 +111,7 @@ main(int argc, char **argv)
 
 
     while(1) {
-        opt = getopt(argc, argv, "q46b:");
+        opt = getopt(argc, argv, "q46b:i:");
         if(opt < 0)
             break;
 
@@ -134,6 +134,10 @@ main(int argc, char **argv)
             }
             goto usage;
         }
+            break;
+        case 'i':
+            id_file = optarg;
+            break;
         default:
             goto usage;
         }
@@ -361,7 +365,7 @@ main(int argc, char **argv)
     return 0;
     
  usage:
-    printf("Usage: dht-example [-q] [-4] [-6] [-b address]...\n"
+    printf("Usage: dht-example [-q] [-4] [-6] [-i filename] [-b address]...\n"
            "                   port [address port]...\n");
     exit(1);
 }
