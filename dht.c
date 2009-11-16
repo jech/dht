@@ -1762,7 +1762,7 @@ dht_periodic(int available, time_t *tosleep,
         }
         if(dht_socket6 >= 0 && rc < 0) {
             rc = recvfrom(dht_socket6, buf, 1536, 0,
-                          (struct sockaddr*)source, &sourcelen);
+                          source, &sourcelen);
             if(rc < 0 && errno != EAGAIN) {
                     return rc;
             }
