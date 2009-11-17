@@ -2574,7 +2574,10 @@ send_error(struct sockaddr *sa, int salen,
                   code, (int)strlen(message));
     INC(i, rc, 512);
     COPY(buf, i, message, strlen(message), 512);
-    rc = snprintf(buf + i, 512 - i, "e1:t2:aa1:y1:ee"); INC(i, rc, 512);
+    rc = snprintf(buf + i, 512 - i, "e1:t%d:", tid_len); INC(i, rc, 512);
+    COPY(buf, i, tid, tid_len, 512);
+    ADD_V(buf, i, 512);
+    rc = snprintf(buf + i, 512 - i, "1:y1:ee"); INC(i, rc, 512);
     return dht_send(buf, i, 0, sa, salen);
 
  fail:
