@@ -189,8 +189,9 @@ static int send_announce_peer(struct sockaddr *sa, int salen,
                               unsigned char *tid, int tid_len,
                               unsigned char *infohas, unsigned short port,
                               unsigned char *token, int token_len, int confirm);
-int send_peer_announced(struct sockaddr *sa, int salen,
-                        unsigned char *tid, int tid_len);
+static int send_peer_announced(struct sockaddr *sa, int salen,
+                               unsigned char *tid, int tid_len);
+
 
 #define REPLY 0
 #define PING 1
@@ -2530,7 +2531,7 @@ send_announce_peer(struct sockaddr *sa, int salen,
     return -1;
 }
 
-int
+static int
 send_peer_announced(struct sockaddr *sa, int salen,
                     unsigned char *tid, int tid_len)
 {
