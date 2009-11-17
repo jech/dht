@@ -1978,8 +1978,8 @@ dht_periodic(int available, time_t *tosleep,
             } else {
                 struct storage *st = find_storage(info_hash);
                 unsigned char token[TOKEN_SIZE];
+                make_token(source, 0, token);
                 if(st && st->numpeers > 0) {
-                     make_token(source, 0, token);
                      debugf("Sending found%s peers.\n",
                             source->sa_family == AF_INET6 ? " IPv6" : "");
                      send_closest_nodes(source, sourcelen,
