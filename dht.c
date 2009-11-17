@@ -195,11 +195,12 @@ static int send_error(struct sockaddr *sa, int salen,
                       unsigned char *tid, int tid_len,
                       int code, char *message);
 
-#define REPLY 0
-#define PING 1
-#define FIND_NODE 2
-#define GET_PEERS 3
-#define ANNOUNCE_PEER 4
+#define ERROR 0
+#define REPLY 1
+#define PING 2
+#define FIND_NODE 3
+#define GET_PEERS 4
+#define ANNOUNCE_PEER 5
 
 #define WANT4 1
 #define WANT6 2
@@ -1805,7 +1806,8 @@ dht_periodic(int available, time_t *tosleep,
                                 nodes, &nodes_len, nodes6, &nodes6_len,
                                 values, &values_len, values6, &values6_len,
                                 &want);
-        if(message < 0 || id_cmp(id, zeroes) == 0) {
+
+        if(message < 0 || message == ERROR || id_cmp(id, zeroes) == 0) {
             debugf("Unparseable message: ");
             debug_printable(buf, rc);
             debugf("\n");
@@ -2800,6 +2802,8 @@ parse_message(const unsigned char *buf, int buflen,
 
     if(memmem(buf, buflen, "1:y1:r", 6))
         return REPLY;
+    if(memmem(buf, buflen, "1:y1:e", 6))
+        return ERROR;
     if(!memmem(buf, buflen, "1:y1:q", 6))
         return -1;
     if(memmem(buf, buflen, "1:q4:ping", 9))
