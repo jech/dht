@@ -2151,7 +2151,7 @@ dht_get_nodes(struct sockaddr_in *sin, int *num,
     n = b->nodes;
     while(n && j < *num6) {
         if(node_good(n)) {
-            sin[j] = *(struct sockaddr_in*)&n->ss;
+            sin6[j] = *(struct sockaddr_in6*)&n->ss;
             j++;
         }
         n = n->next;
