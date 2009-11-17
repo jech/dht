@@ -193,7 +193,7 @@ static int send_peer_announced(struct sockaddr *sa, int salen,
                                unsigned char *tid, int tid_len);
 static int send_error(struct sockaddr *sa, int salen,
                       unsigned char *tid, int tid_len,
-                      int code, char *message);
+                      int code, const char *message);
 
 #define ERROR 0
 #define REPLY 1
@@ -2570,7 +2570,7 @@ send_peer_announced(struct sockaddr *sa, int salen,
 static int
 send_error(struct sockaddr *sa, int salen,
            unsigned char *tid, int tid_len,
-           int code, char *message)
+           int code, const char *message)
 {
     char buf[512];
     int i = 0, rc;
