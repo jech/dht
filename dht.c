@@ -2553,8 +2553,8 @@ send_peer_announced(struct sockaddr *sa, int salen,
     rc = snprintf(buf + i, 512 - i, "e1:t%d:", tid_len);
     INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
-    ADD_V(buf, i, 2048);
-    rc = snprintf(buf + i, 2048 - i, "1:y1:re"); INC(i, rc, 2048);
+    ADD_V(buf, i, 512);
+    rc = snprintf(buf + i, 512 - i, "1:y1:re"); INC(i, rc, 512);
     return dht_send(buf, i, 0, sa, salen);
 
  fail:
