@@ -1471,8 +1471,16 @@ dht_dump_tables(FILE *f)
         print_hex(f, st->id, 20);
         fprintf(f, " %d/%d nodes:", st->numpeers, st->maxpeers);
         for(i = 0; i < st->numpeers; i++) {
-            char buf[20];
-            inet_ntop(AF_INET, st->peers[i].ip, buf, 20);
+            char buf[100];
+            if(st->peers[i].len == 4) {
+                inet_ntop(AF_INET, st->peers[i].ip, buf, 100);
+            } else if(st->peers[i].len == 16) {
+                buf[0] = '[';
+                inet_ntop(AF_INET6, st->peers[i].ip, buf + 1, 98);
+                strcat(buf, "]");
+            } else {
+                strcpy(buf, "???");
+            }
             fprintf(f, " %s:%u (%ld)",
                     buf, st->peers[i].port,
                     (long)(now.tv_sec - st->peers[i].time));
