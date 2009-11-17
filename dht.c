@@ -1970,6 +1970,8 @@ dht_periodic(int available, time_t *tosleep,
             new_node(id, source, sourcelen, 1);
             if(id_cmp(info_hash, zeroes) == 0) {
                 debugf("Eek!  Got get_peers with no info_hash.\n");
+                send_error(source, sourcelen, tid, tid_len,
+                           203, "Get_peers with no info_hash");
                 break;
             } else {
                 struct storage *st = find_storage(info_hash);
@@ -1996,14 +1998,20 @@ dht_periodic(int available, time_t *tosleep,
             new_node(id, source, sourcelen, 1);
             if(id_cmp(info_hash, zeroes) == 0) {
                 debugf("Announce_peer with no info_hash.\n");
+                send_error(source, sourcelen, tid, tid_len,
+                           203, "Announce_peer with no info_hash");
                 break;
             }
             if(!token_match(token, token_len, source)) {
                 debugf("Incorrect token for announce_peer.\n");
+                send_error(source, sourcelen, tid, tid_len,
+                           203, "Announce_peer with wrong token");
                 break;
             }
             if(port == 0) {
                 debugf("Announce_peer with forbidden port %d.\n", port);
+                send_error(source, sourcelen, tid, tid_len,
+                           203, "Announce_peer with forbidden port number");
                 break;
             }
             storage_store(info_hash, source);
@@ -2013,7 +2021,7 @@ dht_periodic(int available, time_t *tosleep,
             debugf("Sending peer announced.\n");
             send_peer_announced(source, sourcelen, tid, tid_len);
         }
-        }
+    }
 
  dontread:
     if(now.tv_sec >= rotate_secrets_time)
