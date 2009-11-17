@@ -690,12 +690,7 @@ new_node(const unsigned char *id, struct sockaddr *sa, int salen, int confirm)
             n = n->next;
         }
 
-        /* If there's only one bucket, split even if there remain doubtful
-           nodes.  This violates the spec, but it speeds up bootstrapping. */
-        /* Only do this for IPv4 for now, let's let the IPv6 DHT bootstrap
-           normally. */
-        if(sa->sa_family == AF_INET && mybucket &&
-           (!dubious || buckets->next == NULL)) {
+        if(mybucket && !dubious) {
             debugf("Splitting.\n");
             b = split_bucket(b);
             if(sa->sa_family == AF_INET)
