@@ -1805,8 +1805,8 @@ dht_periodic(int available, time_t *tosleep,
                                 nodes, &nodes_len, nodes6, &nodes6_len,
                                 values, &values_len, values6, &values6_len,
                                 &want);
-        if(id_cmp(id, zeroes) == 0) {
-            debugf("Message with no id: ");
+        if(message < 0 || id_cmp(id, zeroes) == 0) {
+            debugf("Unparseable message: ");
             debug_printable(buf, rc);
             debugf("\n");
             goto dontread;
