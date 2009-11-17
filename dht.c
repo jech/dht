@@ -805,7 +805,7 @@ insert_search_node(unsigned char *id,
     int i, j;
 
     if(sa->sa_family != sr->af) {
-        debugf("Attempted to insert node in the wrong family.");
+        debugf("Attempted to insert node in the wrong family.\n");
         return 0;
     }
 
@@ -1879,7 +1879,7 @@ dht_periodic(int available, time_t *tosleep,
                         memcpy(&sin.sin_addr, ni + 20, 4);
                         memcpy(&sin.sin_port, ni + 24, 2);
                         new_node(ni, (struct sockaddr*)&sin, sizeof(sin), 0);
-                        if(sr) {
+                        if(sr && sr->af == AF_INET) {
                             insert_search_node(ni,
                                                (struct sockaddr*)&sin,
                                                sizeof(sin),
@@ -1896,7 +1896,7 @@ dht_periodic(int available, time_t *tosleep,
                         memcpy(&sin6.sin6_addr, ni + 20, 16);
                         memcpy(&sin6.sin6_port, ni + 36, 2);
                         new_node(ni, (struct sockaddr*)&sin6, sizeof(sin6), 0);
-                        if(sr) {
+                        if(sr && sr->af == AF_INET6) {
                             insert_search_node(ni,
                                                (struct sockaddr*)&sin6,
                                                sizeof(sin6),
