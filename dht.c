@@ -191,7 +191,9 @@ static int send_announce_peer(struct sockaddr *sa, int salen,
                               unsigned char *token, int token_len, int confirm);
 static int send_peer_announced(struct sockaddr *sa, int salen,
                                unsigned char *tid, int tid_len);
-
+static int send_error(struct sockaddr *sa, int salen,
+                      unsigned char *tid, int tid_len,
+                      int code, char *message);
 
 #define REPLY 0
 #define PING 1
@@ -2545,6 +2547,26 @@ send_peer_announced(struct sockaddr *sa, int salen,
     COPY(buf, i, tid, tid_len, 512);
     ADD_V(buf, i, 2048);
     rc = snprintf(buf + i, 2048 - i, "1:y1:re"); INC(i, rc, 2048);
+    return dht_send(buf, i, 0, sa, salen);
+
+ fail:
+    errno = ENOSPC;
+    return -1;
+}
+
+static int
+send_error(struct sockaddr *sa, int salen,
+           unsigned char *tid, int tid_len,
+           int code, char *message)
+{
+    char buf[512];
+    int i = 0, rc;
+
+    rc = snprintf(buf + i, 512 - i, "d1:eli%de%d:",
+                  code, (int)strlen(message));
+    INC(i, rc, 512);
+    COPY(buf, i, message, strlen(message), 512);
+    rc = snprintf(buf + i, 512 - i, "e1:t2:aa1:y1:ee"); INC(i, rc, 512);
     return dht_send(buf, i, 0, sa, salen);
 
  fail:
