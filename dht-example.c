@@ -204,6 +204,12 @@ main(int argc, char **argv)
         struct addrinfo hints, *info, *infop;
         memset(&hints, 0, sizeof(hints));
         hints.ai_socktype = SOCK_DGRAM;
+        if(!ipv6)
+            hints.ai_family = AF_INET;
+        else if(!ipv4)
+            hints.ai_family = AF_INET6;
+        else
+            hints.ai_family = 0;
         rc = getaddrinfo(argv[i], argv[i + 1], &hints, &info);
         if(rc != 0) {
             fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rc));
