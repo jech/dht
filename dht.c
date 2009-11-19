@@ -2354,17 +2354,20 @@ send_nodes_peers(struct sockaddr *sa, int salen,
         j = j0;
         k = 0;
 
+        rc = snprintf(buf + i, 2048 - i, "6:valuesl"); INC(i, rc, 2048);
         do {
             if(st->peers[j].len == len) {
                 unsigned short swapped;
                 swapped = htons(st->peers[j].port);
-                rc = snprintf(buf + i, 2048 - i, "%d:", len); INC(i, rc, 2048);
+                rc = snprintf(buf + i, 2048 - i, "%d:", len + 2);
+                INC(i, rc, 2048);
                 COPY(buf, i, st->peers[j].ip, len, 2048);
                 COPY(buf, i, &swapped, 2, 2048);
                 k++;
             }
             j = (j + 1) % st->numpeers;
         } while(j != j0 && k < 50);
+        rc = snprintf(buf + i, 2048 - i, "e"); INC(i, rc, 2048);
     }
 
     rc = snprintf(buf + i, 2048 - i, "e1:t%d:", tid_len); INC(i, rc, 2048);
