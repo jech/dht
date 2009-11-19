@@ -1157,12 +1157,12 @@ storage_store(const unsigned char *id, struct sockaddr *sa)
         struct sockaddr_in *sin = (struct sockaddr_in*)sa;
         ip = (unsigned char*)&sin->sin_addr;
         len = 4;
-        port = htons(sin->sin_port);
+        port = ntohs(sin->sin_port);
     } else if(sa->sa_family == AF_INET6) {
         struct sockaddr_in6 *sin6 = (struct sockaddr_in6*)sa;
         ip = (unsigned char*)&sin6->sin6_addr;
         len = 16;
-        port = htons(sin6->sin6_port);
+        port = ntohs(sin6->sin6_port);
     }
 
     for(i = 0; i < st->numpeers; i++) {
