@@ -1138,7 +1138,7 @@ storage_store(const unsigned char *id, struct sockaddr *sa)
     int i, len;
     struct storage *st = storage;
     unsigned char *ip;
-    short int port;
+    unsigned short port;
 
     st = find_storage(id);
 
