@@ -1,4 +1,4 @@
-dht-0.11 (unreleased)
+22 November 2009: dht-0.11
 
   * Implemented IPv6 support (BEP-32).
   * Fixed a bug which could cause us to never mark a search as finished.
