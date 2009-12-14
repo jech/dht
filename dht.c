@@ -2641,6 +2641,12 @@ parse_message(const unsigned char *buf, int buflen,
 {
     const unsigned char *p;
 
+    /* This code will happily crash if the buffer is not NUL-terminated. */
+    if(buf[buflen] != '\0') {
+        debugf("Eek!  parse_message with unterminated buffer.\n");
+        return -1;
+    }
+
 #define CHECK(ptr, len)                                                 \
     if(((unsigned char*)ptr) + (len) > (buf) + (buflen)) goto overflow;
 
