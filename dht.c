@@ -644,7 +644,16 @@ new_node(const unsigned char *id, struct sockaddr *sa, int salen, int confirm)
         n = n->next;
     }
 
-    /* New node.  First, try to get rid of a known-bad node. */
+    /* New node. */
+
+    if(mybucket) {
+        if(sa->sa_family == AF_INET)
+            mybucket_grow_time = now.tv_sec;
+        else
+            mybucket6_grow_time = now.tv_sec;
+    }
+
+    /* First, try to get rid of a known-bad node. */
     n = b->nodes;
     while(n) {
         if(n->pinged >= 3 && n->pinged_time < now.tv_sec - 15) {
@@ -654,12 +663,6 @@ new_node(const unsigned char *id, struct sockaddr *sa, int salen, int confirm)
             n->reply_time = confirm >= 2 ? now.tv_sec : 0;
             n->pinged_time = 0;
             n->pinged = 0;
-            if(mybucket) {
-                if(sa->sa_family == AF_INET)
-                    mybucket_grow_time = now.tv_sec;
-                else
-                    mybucket6_grow_time = now.tv_sec;
-            }
             return n;
         }
         n = n->next;
@@ -705,10 +708,6 @@ new_node(const unsigned char *id, struct sockaddr *sa, int salen, int confirm)
         if(split) {
             debugf("Splitting.\n");
             b = split_bucket(b);
-            if(sa->sa_family == AF_INET)
-                mybucket_grow_time = now.tv_sec;
-            else
-                mybucket6_grow_time = now.tv_sec;
             return new_node(id, sa, salen, confirm);
         }
 
@@ -733,12 +732,6 @@ new_node(const unsigned char *id, struct sockaddr *sa, int salen, int confirm)
     n->next = b->nodes;
     b->nodes = n;
     b->count++;
-    if(mybucket) {
-        if(sa->sa_family == AF_INET)
-            mybucket_grow_time = now.tv_sec;
-        else
-            mybucket6_grow_time = now.tv_sec;
-    }
     return n;
 }
 
