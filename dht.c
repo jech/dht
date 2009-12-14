@@ -1660,6 +1660,8 @@ neighbourhood_maintenance(int af)
     }
 
     if(q) {
+        /* Since our node-id is the same in both DHTs, it's probably
+           profitable to query both families. */
         int want = dht_socket >= 0 && dht_socket6 >= 0 ? (WANT4 | WANT6) : -1;
         n = random_node(q);
         if(n) {
