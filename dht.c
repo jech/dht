@@ -651,6 +651,9 @@ new_node(const unsigned char *id, struct sockaddr *sa, int salen, int confirm)
     if(id_cmp(id, myid) == 0)
         return NULL;
 
+    if(is_martian(sa))
+        return NULL;
+
     mybucket = in_bucket(myid, b);
 
     if(confirm == 2)
@@ -1823,6 +1826,9 @@ dht_periodic(int available, time_t *tosleep,
         }
 
         if(rc < 0 || sourcelen > sizeof(struct sockaddr_storage))
+            goto dontread;
+
+        if(is_martian(source))
             goto dontread;
 
         for(i = 0; i < DHT_MAX_BLACKLISTED; i++) {
