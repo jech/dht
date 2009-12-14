@@ -224,6 +224,9 @@ static const unsigned char ones[20] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF
 };
+static const unsigned char v4prefix[16] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0
+};
 
 static int dht_socket = -1;
 static int dht_socket6 = -1;
@@ -295,6 +298,34 @@ print_hex(FILE *f, const unsigned char *buf, int buflen)
     int i;
     for(i = 0; i < buflen; i++)
         fprintf(f, "%02x", buf[i]);
+}
+
+static int
+is_martian(struct sockaddr *sa)
+{
+    switch(sa->sa_family) {
+    case AF_INET: {
+        struct sockaddr_in *sin = (struct sockaddr_in*)sa;
+        const unsigned char *address = (const unsigned char*)&sin->sin_addr;
+        return sin->sin_port == 0 ||
+            (address[0] == 0) ||
+            (address[0] == 127) ||
+            ((address[0] & 0xE0) == 0xE0);
+    }
+    case AF_INET6: {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6*)sa;
+        const unsigned char *address = (const unsigned char*)&sin6->sin6_addr;
+        return sin6->sin6_port == 0 ||
+            (address[0] == 0xFF) ||
+            (address[0] == 0xFE && (address[1] & 0xC0) == 0x80) ||
+            (memcmp(address, zeroes, 15) == 0 &&
+             (address[15] == 0 || address[15] == 1)) ||
+            (memcmp(address, v4prefix, 12) == 0);
+    }
+
+    default:
+        return 0;
+    }
 }
 
 /* Forget about the ``XOR-metric''.  An id is just a path from the
