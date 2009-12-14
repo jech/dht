@@ -1652,7 +1652,7 @@ neighbourhood_maintenance(int af)
     struct node *n;
 
     if(b == NULL)
-        return -1;
+        return 0;
 
     memcpy(id, myid, 20);
     id[19] = random() & 0xFF;
@@ -1679,8 +1679,9 @@ neighbourhood_maintenance(int af)
                            n->reply_time >= now.tv_sec - 15);
             pinged(n, q);
         }
+        return 1;
     }
-    return 1;
+    return 0;
 }
 
 static int
