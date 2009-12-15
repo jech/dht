@@ -1,4 +1,4 @@
-dht-0.13 (unreleased):
+15 December 2009: dht-0.13
 
   * Implemented protection against incorrect addresses in the DHT.
   * Tweaked neighborhood maintenance to wake up less often.
