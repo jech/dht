@@ -2373,11 +2373,6 @@ send_nodes_peers(struct sockaddr *sa, int salen,
 
     rc = snprintf(buf + i, 2048 - i, "d1:rd2:id20:"); INC(i, rc, 2048);
     COPY(buf, i, myid, 20, 2048);
-    if(token_len > 0) {
-        rc = snprintf(buf + i, 2048 - i, "5:token%d:", token_len);
-        INC(i, rc, 2048);
-        COPY(buf, i, token, token_len, 2048);
-    }
     if(nodes_len > 0) {
         rc = snprintf(buf + i, 2048 - i, "5:nodes%d:", nodes_len);
         INC(i, rc, 2048);
@@ -2387,6 +2382,11 @@ send_nodes_peers(struct sockaddr *sa, int salen,
          rc = snprintf(buf + i, 2048 - i, "6:nodes6%d:", nodes6_len);
          INC(i, rc, 2048);
          COPY(buf, i, nodes6, nodes6_len, 2048);
+    }
+    if(token_len > 0) {
+        rc = snprintf(buf + i, 2048 - i, "5:token%d:", token_len);
+        INC(i, rc, 2048);
+        COPY(buf, i, token, token_len, 2048);
     }
 
     if(st && st->numpeers > 0) {
