@@ -1832,45 +1832,26 @@ bucket_maintenance(int af)
 }
 
 int
-dht_periodic(int available, time_t *tosleep,
+dht_periodic(const void *buf, size_t buflen,
+             const struct sockaddr *from, int fromlen,
+             time_t *tosleep,
              dht_callback *callback, void *closure)
 {
     int i;
 
     gettimeofday(&now, NULL);
 
-    if(available) {
-        int rc, message;
+    if(buflen > 0) {
+        int message;
         unsigned char tid[16], id[20], info_hash[20], target[20];
-        unsigned char buf[1536], nodes[256], nodes6[1024], token[128];
+        unsigned char nodes[256], nodes6[1024], token[128];
         int tid_len = 16, token_len = 128;
         int nodes_len = 256, nodes6_len = 1024;
         unsigned short port;
         unsigned char values[2048], values6[2048];
         int values_len = 2048, values6_len = 2048;
         int want, want4, want6;
-        struct sockaddr_storage from_storage;
-        struct sockaddr *from = (struct sockaddr*)&from_storage;
-        socklen_t fromlen = sizeof(from_storage);
         unsigned short ttid;
-
-        rc = -1;
-        if(dht_socket >= 0) {
-            rc = recvfrom(dht_socket, buf, 1536, 0, from, &fromlen);
-            if(rc < 0 && errno != EAGAIN) {
-                    return rc;
-            }
-        }
-        if(dht_socket6 >= 0 && rc < 0) {
-            rc = recvfrom(dht_socket6, buf, 1536, 0,
-                          from, &fromlen);
-            if(rc < 0 && errno != EAGAIN) {
-                    return rc;
-            }
-        }
-
-        if(rc < 0 || fromlen > sizeof(struct sockaddr_storage))
-            goto dontread;
 
         if(is_martian(from))
             goto dontread;
@@ -1882,18 +1863,15 @@ dht_periodic(int available, time_t *tosleep,
             }
         }
 
-        /* There's a bug in parse_message -- it will happily overflow the
-           buffer if it's not NUL-terminated.  For now, put a NUL at the
-           end of buffers. */
+        /* See parse_message. */
 
-        if(rc < 1536) {
-            buf[rc] = '\0';
-        } else {
-            debugf("Overlong message.\n");
-            goto dontread;
+        if(((char*)buf)[buflen] != '\0') {
+            debugf("Unterminated message.\n");
+            errno = EINVAL;
+            return -1;
         }
 
-        message = parse_message(buf, rc, tid, &tid_len, id, info_hash,
+        message = parse_message(buf, buflen, tid, &tid_len, id, info_hash,
                                 target, &port, token, &token_len,
                                 nodes, &nodes_len, nodes6, &nodes6_len,
                                 values, &values_len, values6, &values6_len,
@@ -1901,7 +1879,7 @@ dht_periodic(int available, time_t *tosleep,
 
         if(message < 0 || message == ERROR || id_cmp(id, zeroes) == 0) {
             debugf("Unparseable message: ");
-            debug_printable(buf, rc);
+            debug_printable(buf, buflen);
             debugf("\n");
             goto dontread;
         }
@@ -1931,7 +1909,7 @@ dht_periodic(int available, time_t *tosleep,
         case REPLY:
             if(tid_len != 4) {
                 debugf("Broken node truncates transaction ids: ");
-                debug_printable(buf, rc);
+                debug_printable(buf, buflen);
                 debugf("\n");
                 /* This is really annoying, as it means that we will
                    time-out all our searches that go through this node.
@@ -2041,7 +2019,7 @@ dht_periodic(int available, time_t *tosleep,
                 }
             } else {
                 debugf("Unexpected reply: ");
-                debug_printable(buf, rc);
+                debug_printable(buf, buflen);
                 debugf("\n");
             }
             break;
