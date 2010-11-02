@@ -212,34 +212,34 @@ struct storage {
     struct storage *next;
 };
 
-static int send_ping(struct sockaddr *sa, int salen,
+static int send_ping(const struct sockaddr *sa, int salen,
                      const unsigned char *tid, int tid_len);
-static int send_pong(struct sockaddr *sa, int salen,
+static int send_pong(const struct sockaddr *sa, int salen,
                      const unsigned char *tid, int tid_len);
-static int send_find_node(struct sockaddr *sa, int salen,
+static int send_find_node(const struct sockaddr *sa, int salen,
                           const unsigned char *tid, int tid_len,
                           const unsigned char *target, int want, int confirm);
-static int send_nodes_peers(struct sockaddr *sa, int salen,
+static int send_nodes_peers(const struct sockaddr *sa, int salen,
                             const unsigned char *tid, int tid_len,
                             const unsigned char *nodes, int nodes_len,
                             const unsigned char *nodes6, int nodes6_len,
                             int af, struct storage *st,
                             const unsigned char *token, int token_len);
-static int send_closest_nodes(struct sockaddr *sa, int salen,
+static int send_closest_nodes(const struct sockaddr *sa, int salen,
                               const unsigned char *tid, int tid_len,
                               const unsigned char *id, int want,
                               int af, struct storage *st,
                               const unsigned char *token, int token_len);
-static int send_get_peers(struct sockaddr *sa, int salen,
+static int send_get_peers(const struct sockaddr *sa, int salen,
                           unsigned char *tid, int tid_len,
                           unsigned char *infohash, int want, int confirm);
-static int send_announce_peer(struct sockaddr *sa, int salen,
+static int send_announce_peer(const struct sockaddr *sa, int salen,
                               unsigned char *tid, int tid_len,
                               unsigned char *infohas, unsigned short port,
                               unsigned char *token, int token_len, int confirm);
-static int send_peer_announced(struct sockaddr *sa, int salen,
+static int send_peer_announced(const struct sockaddr *sa, int salen,
                                unsigned char *tid, int tid_len);
-static int send_error(struct sockaddr *sa, int salen,
+static int send_error(const struct sockaddr *sa, int salen,
                       unsigned char *tid, int tid_len,
                       int code, const char *message);
 
@@ -349,7 +349,7 @@ print_hex(FILE *f, const unsigned char *buf, int buflen)
 }
 
 static int
-is_martian(struct sockaddr *sa)
+is_martian(const struct sockaddr *sa)
 {
     switch(sa->sa_family) {
     case AF_INET: {
@@ -687,7 +687,8 @@ pinged(struct node *n, struct bucket *b)
 /* We just learnt about a node, not necessarily a new one.  Confirm is 1 if
    the node sent a message, 2 if it sent us a reply. */
 static struct node *
-new_node(const unsigned char *id, struct sockaddr *sa, int salen, int confirm)
+new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
+         int confirm)
 {
     struct bucket *b = find_bucket(id, sa->sa_family);
     struct node *n;
@@ -879,7 +880,7 @@ find_search(unsigned short tid, int af)
 
 static int
 insert_search_node(unsigned char *id,
-                   struct sockaddr *sa, int salen,
+                   const struct sockaddr *sa, int salen,
                    struct search *sr, int replied,
                    unsigned char *token, int token_len)
 {
@@ -1220,7 +1221,7 @@ find_storage(const unsigned char *id)
 }
 
 static int
-storage_store(const unsigned char *id, struct sockaddr *sa)
+storage_store(const unsigned char *id, const struct sockaddr *sa)
 {
     int i, len;
     struct storage *st;
@@ -1331,7 +1332,7 @@ expire_storage(void)
 
 /* We've just found out that a node is buggy. */
 static void
-broken_node(const unsigned char *id, struct sockaddr *sa, int salen)
+broken_node(const unsigned char *id, const struct sockaddr *sa, int salen)
 {
     int i;
 
@@ -1381,7 +1382,7 @@ rotate_secrets(void)
 #endif
 
 static void
-make_token(struct sockaddr *sa, int old, unsigned char *token_return)
+make_token(const struct sockaddr *sa, int old, unsigned char *token_return)
 {
     void *ip;
     int iplen;
@@ -1406,7 +1407,8 @@ make_token(struct sockaddr *sa, int old, unsigned char *token_return)
              ip, iplen, (unsigned char*)&port, 2);
 }
 static int
-token_match(unsigned char *token, int token_len, struct sockaddr *sa)
+token_match(const unsigned char *token, int token_len,
+            const struct sockaddr *sa)
 {
     unsigned char t[TOKEN_SIZE];
     if(token_len != TOKEN_SIZE)
@@ -2335,7 +2337,7 @@ dht_send(const void *buf, size_t len, int flags,
 }
 
 int
-send_ping(struct sockaddr *sa, int salen,
+send_ping(const struct sockaddr *sa, int salen,
           const unsigned char *tid, int tid_len)
 {
     char buf[512];
@@ -2355,7 +2357,7 @@ send_ping(struct sockaddr *sa, int salen,
 }
 
 int
-send_pong(struct sockaddr *sa, int salen,
+send_pong(const struct sockaddr *sa, int salen,
           const unsigned char *tid, int tid_len)
 {
     char buf[512];
@@ -2374,7 +2376,7 @@ send_pong(struct sockaddr *sa, int salen,
 }
 
 int
-send_find_node(struct sockaddr *sa, int salen,
+send_find_node(const struct sockaddr *sa, int salen,
                const unsigned char *tid, int tid_len,
                const unsigned char *target, int want, int confirm)
 {
@@ -2403,7 +2405,7 @@ send_find_node(struct sockaddr *sa, int salen,
 }
 
 int
-send_nodes_peers(struct sockaddr *sa, int salen,
+send_nodes_peers(const struct sockaddr *sa, int salen,
                  const unsigned char *tid, int tid_len,
                  const unsigned char *nodes, int nodes_len,
                  const unsigned char *nodes6, int nodes6_len,
@@ -2530,7 +2532,7 @@ buffer_closest_nodes(unsigned char *nodes, int numnodes,
 }
 
 int
-send_closest_nodes(struct sockaddr *sa, int salen,
+send_closest_nodes(const struct sockaddr *sa, int salen,
                    const unsigned char *tid, int tid_len,
                    const unsigned char *id, int want,
                    int af, struct storage *st,
@@ -2577,7 +2579,7 @@ send_closest_nodes(struct sockaddr *sa, int salen,
 }
 
 int
-send_get_peers(struct sockaddr *sa, int salen,
+send_get_peers(const struct sockaddr *sa, int salen,
                unsigned char *tid, int tid_len, unsigned char *infohash,
                int want, int confirm)
 {
@@ -2607,7 +2609,7 @@ send_get_peers(struct sockaddr *sa, int salen,
 }
 
 int
-send_announce_peer(struct sockaddr *sa, int salen,
+send_announce_peer(const struct sockaddr *sa, int salen,
                    unsigned char *tid, int tid_len,
                    unsigned char *infohash, unsigned short port,
                    unsigned char *token, int token_len, int confirm)
@@ -2637,7 +2639,7 @@ send_announce_peer(struct sockaddr *sa, int salen,
 }
 
 static int
-send_peer_announced(struct sockaddr *sa, int salen,
+send_peer_announced(const struct sockaddr *sa, int salen,
                     unsigned char *tid, int tid_len)
 {
     char buf[512];
@@ -2658,7 +2660,7 @@ send_peer_announced(struct sockaddr *sa, int salen,
 }
 
 static int
-send_error(struct sockaddr *sa, int salen,
+send_error(const struct sockaddr *sa, int salen,
            unsigned char *tid, int tid_len,
            int code, const char *message)
 {
