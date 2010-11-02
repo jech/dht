@@ -1850,7 +1850,7 @@ dht_periodic(const void *buf, size_t buflen,
         unsigned short port;
         unsigned char values[2048], values6[2048];
         int values_len = 2048, values6_len = 2048;
-        int want, want4, want6;
+        int want;
         unsigned short ttid;
 
         if(is_martian(from))
@@ -1895,14 +1895,6 @@ dht_periodic(const void *buf, size_t buflen,
                 debugf("Dropping request due to rate limiting.\n");
                 goto dontread;
             }
-        }
-
-        if(want > 0) {
-            want4 = (want & WANT4);
-            want6 = (want & WANT6);
-        } else {
-            want4 = from->sa_family == AF_INET;
-            want6 = from->sa_family == AF_INET6;
         }
 
         switch(message) {
