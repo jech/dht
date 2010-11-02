@@ -2841,8 +2841,10 @@ parse_message(const unsigned char *buf, int buflen,
             if(values6_len)
                 *values6_len = j6;
         } else {
-            *values_len = 0;
-            *values6_len = 0;
+            if(values_len)
+                *values_len = 0;
+            if(values6_len)
+                *values6_len = 0;
         }
     }
 
