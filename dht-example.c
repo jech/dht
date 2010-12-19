@@ -344,10 +344,10 @@ main(int argc, char **argv)
 
         if(rc > 0) {
             fromlen = sizeof(from);
-            if(FD_ISSET(s, &readfds))
+            if(s >= 0 && FD_ISSET(s, &readfds))
                 rc = recvfrom(s, buf, sizeof(buf) - 1, 0,
                               (struct sockaddr*)&from, &fromlen);
-            else if(FD_ISSET(s6, &readfds))
+            else if(s6 >= 0 && FD_ISSET(s6, &readfds))
                 rc = recvfrom(s6, buf, sizeof(buf) - 1, 0,
                               (struct sockaddr*)&from, &fromlen);
             else
