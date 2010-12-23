@@ -1,4 +1,4 @@
-dht-0.16 (unreleased):
+23 December 2010: dht-0.16:
 
   * Change the interface to allow sharing of the UDP socket e.g. with uTP.
 
