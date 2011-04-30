@@ -310,7 +310,7 @@ static struct timeval now;
 static time_t mybucket_grow_time, mybucket6_grow_time;
 static time_t expire_stuff_time;
 
-#define MAX_TOKEN_BUCKET_TOKENS 40
+#define MAX_TOKEN_BUCKET_TOKENS 400
 static time_t token_bucket_time;
 static int token_bucket_tokens;
 
