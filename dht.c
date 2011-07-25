@@ -1330,7 +1330,7 @@ expire_storage(void)
 
 /* We've just found out that a node is buggy. */
 static void
-broken_node(const unsigned char *id, const struct sockaddr *sa, int salen)
+blacklist_node(const unsigned char *id, const struct sockaddr *sa, int salen)
 {
     int i;
 
@@ -1915,7 +1915,7 @@ dht_periodic(const void *buf, size_t buflen,
                 /* This is really annoying, as it means that we will
                    time-out all our searches that go through this node.
                    Kill it. */
-                broken_node(id, from, fromlen);
+                blacklist_node(id, from, fromlen);
                 goto dontread;
             }
             if(tid_match(tid, "pn", NULL)) {
@@ -1933,7 +1933,7 @@ dht_periodic(const void *buf, size_t buflen,
                        gp ? " for get_peers" : "");
                 if(nodes_len % 26 != 0 || nodes6_len % 38 != 0) {
                     debugf("Unexpected length for node info!\n");
-                    broken_node(id, from, fromlen);
+                    blacklist_node(id, from, fromlen);
                 } else if(gp && sr == NULL) {
                     debugf("Unknown search!\n");
                     new_node(id, from, fromlen, 1);
