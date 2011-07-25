@@ -212,6 +212,8 @@ struct storage {
     struct storage *next;
 };
 
+static void flush_search_node(struct search_node *n, struct search *sr);
+
 static int send_ping(const struct sockaddr *sa, int salen,
                      const unsigned char *tid, int tid_len);
 static int send_pong(const struct sockaddr *sa, int salen,
@@ -636,6 +638,65 @@ send_cached_ping(struct bucket *b)
     return rc;
 }
 
+/* Called whenever we send a request to a node, increases the ping count
+   and, if that reaches 3, sends a ping to a new candidate. */
+static void
+pinged(struct node *n, struct bucket *b)
+{
+    n->pinged++;
+    n->pinged_time = now.tv_sec;
+    if(n->pinged >= 3)
+        send_cached_ping(b ? b : find_bucket(n->id, n->ss.ss_family));
+}
+
+/* The internal blacklist is an LRU cache of nodes that have sent
+   incorrect messages. */
+static void
+blacklist_node(const unsigned char *id, const struct sockaddr *sa, int salen)
+{
+    int i;
+
+    debugf("Blacklisting broken node.\n");
+
+    if(id) {
+        struct node *n;
+        struct search *sr;
+        /* Make the node easy to discard. */
+        n = find_node(id, sa->sa_family);
+        if(n) {
+            n->pinged = 3;
+            pinged(n, NULL);
+        }
+        /* Discard it from any searches in progress. */
+        sr = searches;
+        while(sr) {
+            for(i = 0; i < sr->numnodes; i++)
+                if(id_cmp(sr->nodes[i].id, id) == 0)
+                    flush_search_node(&sr->nodes[i], sr);
+            sr = sr->next;
+        }
+    }
+    /* And make sure we don't hear from it again. */
+    memcpy(&blacklist[next_blacklisted], sa, salen);
+    next_blacklisted = (next_blacklisted + 1) % DHT_MAX_BLACKLISTED;
+}
+
+static int
+node_blacklisted(const struct sockaddr *sa, int salen)
+{
+    int i;
+
+    if(salen > sizeof(struct sockaddr_storage))
+        abort();
+
+    for(i = 0; i < DHT_MAX_BLACKLISTED; i++) {
+        if(memcmp(&blacklist[i], sa, salen) == 0)
+            return 1;
+    }
+
+    return 0;
+}
+
 /* Split a bucket into two equal parts. */
 static struct bucket *
 split_bucket(struct bucket *b)
@@ -672,16 +733,6 @@ split_bucket(struct bucket *b)
         insert_node(n);
     }
     return b;
-}
-
-/* Called whenever we send a request to a node. */
-static void
-pinged(struct node *n, struct bucket *b)
-{
-    n->pinged++;
-    n->pinged_time = now.tv_sec;
-    if(n->pinged >= 3)
-        send_cached_ping(b ? b : find_bucket(n->id, n->ss.ss_family));
 }
 
 /* We just learnt about a node, not necessarily a new one.  Confirm is 1 if
@@ -1326,53 +1377,6 @@ expire_storage(void)
         }
     }
     return 1;
-}
-
-/* We've just found out that a node is buggy. */
-static void
-blacklist_node(const unsigned char *id, const struct sockaddr *sa, int salen)
-{
-    int i;
-
-    debugf("Blacklisting broken node.\n");
-
-    if(id) {
-        struct node *n;
-        struct search *sr;
-        /* Make the node easy to discard. */
-        n = find_node(id, sa->sa_family);
-        if(n) {
-            n->pinged = 3;
-            pinged(n, NULL);
-        }
-        /* Discard it from any searches in progress. */
-        sr = searches;
-        while(sr) {
-            for(i = 0; i < sr->numnodes; i++)
-                if(id_cmp(sr->nodes[i].id, id) == 0)
-                    flush_search_node(&sr->nodes[i], sr);
-            sr = sr->next;
-        }
-    }
-    /* And make sure we don't hear from it again. */
-    memcpy(&blacklist[next_blacklisted], sa, salen);
-    next_blacklisted = (next_blacklisted + 1) % DHT_MAX_BLACKLISTED;
-}
-
-static int
-node_blacklisted(const struct sockaddr *sa, int salen)
-{
-    int i;
-
-    if(salen > sizeof(struct sockaddr_storage))
-        abort();
-
-    for(i = 0; i < DHT_MAX_BLACKLISTED; i++) {
-        if(memcmp(&blacklist[i], sa, salen) == 0)
-            return 1;
-    }
-
-    return 0;
 }
 
 static int
