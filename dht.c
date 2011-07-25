@@ -1360,6 +1360,24 @@ blacklist_node(const unsigned char *id, const struct sockaddr *sa, int salen)
 }
 
 static int
+node_blacklisted(const struct sockaddr *sa, int salen)
+{
+    int i;
+
+    if(salen > sizeof(struct sockaddr_storage)) {
+        debugf("Checking for overlong blacklisted node.\n");
+        return -1;
+    }
+
+    for(i = 0; i < DHT_MAX_BLACKLISTED; i++) {
+        if(memcmp(&blacklist[i], sa, salen) == 0)
+            return 1;
+    }
+
+    return 0;
+}
+
+static int
 rotate_secrets(void)
 {
     int rc;
@@ -1846,8 +1864,6 @@ dht_periodic(const void *buf, size_t buflen,
              time_t *tosleep,
              dht_callback *callback, void *closure)
 {
-    int i;
-
     gettimeofday(&now, NULL);
 
     if(buflen > 0) {
@@ -1865,14 +1881,10 @@ dht_periodic(const void *buf, size_t buflen,
         if(is_martian(from))
             goto dontread;
 
-        for(i = 0; i < DHT_MAX_BLACKLISTED; i++) {
-            if(memcmp(&blacklist[i], from, fromlen) == 0) {
-                debugf("Received packet from blacklisted node.\n");
-                goto dontread;
-            }
+        if(node_blacklisted(from, fromlen)) {
+            debugf("Received packet from blacklisted node.\n");
+            goto dontread;
         }
-
-        /* See parse_message. */
 
         if(((char*)buf)[buflen] != '\0') {
             debugf("Unterminated message.\n");
