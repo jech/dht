@@ -751,7 +751,7 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
     if(id_cmp(id, myid) == 0)
         return NULL;
 
-    if(is_martian(sa))
+    if(is_martian(sa) || node_blacklisted(sa, salen))
         return NULL;
 
     mybucket = in_bucket(myid, b);
