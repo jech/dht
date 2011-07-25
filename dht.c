@@ -1364,10 +1364,8 @@ node_blacklisted(const struct sockaddr *sa, int salen)
 {
     int i;
 
-    if(salen > sizeof(struct sockaddr_storage)) {
-        debugf("Checking for overlong blacklisted node.\n");
-        return -1;
-    }
+    if(salen > sizeof(struct sockaddr_storage))
+        abort();
 
     for(i = 0; i < DHT_MAX_BLACKLISTED; i++) {
         if(memcmp(&blacklist[i], sa, salen) == 0)
@@ -2311,6 +2309,12 @@ dht_send(const void *buf, size_t len, int flags,
 
     if(salen == 0)
         abort();
+
+    if(node_blacklisted(sa, salen)) {
+        debugf("Attempting to send to blacklisted node.\n");
+        errno = EPERM;
+        return -1;
+    }
 
     if(sa->sa_family == AF_INET)
         s = dht_socket;
