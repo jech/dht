@@ -329,7 +329,8 @@ debugf(const char *format, ...)
     if(dht_debug)
         vfprintf(dht_debug, format, args);
     va_end(args);
-    fflush(dht_debug);
+    if(dht_debug)
+        fflush(dht_debug);
 }
 
 static void
