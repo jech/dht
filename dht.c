@@ -212,6 +212,7 @@ struct storage {
     struct storage *next;
 };
 
+static struct storage * find_storage(const unsigned char *id);
 static void flush_search_node(struct search_node *n, struct search *sr);
 
 static int send_ping(const struct sockaddr *sa, int salen,
