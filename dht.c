@@ -1223,7 +1223,7 @@ dht_search(const unsigned char *id, int port, int af,
                 } else if(st->peers[i].len == 16) {
                     memcpy(buf, st->peers[i].ip, 16);
                     memcpy(buf + 16, &swapped, 2);
-                    (*callback)(closure, DHT_EVENT_VALUES, id,
+                    (*callback)(closure, DHT_EVENT_VALUES6, id,
                                 (void*)buf, 18);
                 }
             }
