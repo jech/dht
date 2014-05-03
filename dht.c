@@ -1213,6 +1213,8 @@ dht_search(const unsigned char *id, int port, int af,
             unsigned char buf[18];
             int i;
 
+            debugf("Found local data (%d peers).\n", st->numpeers);
+
             for(i = 0; i < st->numpeers; i++) {
                 swapped = htons(st->peers[i].port);
                 if(st->peers[i].len == 4) {
