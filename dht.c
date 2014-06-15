@@ -40,7 +40,7 @@ THE SOFTWARE.
 #include <fcntl.h>
 #include <sys/time.h>
 
-#ifndef WIN32
+#ifndef _WIN32
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -63,7 +63,7 @@ THE SOFTWARE.
 #define MSG_CONFIRM 0
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 
 #define EAFNOSUPPORT WSAEAFNOSUPPORT
 static int
