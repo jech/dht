@@ -1,5 +1,8 @@
 CFLAGS = -g -Wall
-LDLIBS = -lcrypt
+
+ifneq ($(shell uname -s),Darwin)
+  LDLIBS = -lcrypt
+endif
 
 dht-example: dht-example.o dht.o
 
