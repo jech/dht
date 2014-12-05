@@ -36,19 +36,25 @@ THE SOFTWARE.
 #include <errno.h>
 #include <string.h>
 #include <stdarg.h>
+
+#ifndef _WIN32
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/time.h>
 
-#ifndef _WIN32
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #else
-#include <w32api.h>
-#define WINVER WindowsXP
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0501 /* Windows XP */
+#endif
+#ifndef WINVER
+#define WINVER _WIN32_WINNT
+#endif
 #include <ws2tcpip.h>
+#include <windows.h>
 #endif
 
 #include "dht.h"
@@ -65,7 +71,9 @@ THE SOFTWARE.
 
 #ifdef _WIN32
 
+#undef EAFNOSUPPORT
 #define EAFNOSUPPORT WSAEAFNOSUPPORT
+
 static int
 set_nonblocking(int fd, int nonblocking)
 {
@@ -83,7 +91,16 @@ random(void)
 {
     return rand();
 }
+
+/* Windows Vista and later already provide the implementation. */
+#if _WIN32_WINNT < 0x0600
 extern const char *inet_ntop(int, const void *, char *, socklen_t);
+#endif
+
+#ifdef _MSC_VER
+/* There is no snprintf in MSVCRT. */
+#define snprintf _snprintf
+#endif
 
 #else
 
