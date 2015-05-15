@@ -141,7 +141,7 @@ struct bucket {
     int af;
     unsigned char first[20];
     int count;                  /* number of nodes */
-    int time;                   /* time of last reply in this bucket */
+    time_t time;                /* time of last reply in this bucket */
     struct node *nodes;
     struct sockaddr_storage cached;  /* the address of a likely candidate */
     int cachedlen;
