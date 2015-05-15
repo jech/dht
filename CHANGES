@@ -1,3 +1,10 @@
+15 May 2015: dht-0.23
+
+  * Changed the limit on the number of nodes in replies to 16.  Thanks to
+    Tomas Brod.
+  * Fixed a memory leak when initialisation fails.  Thanks to 3null.
+  * Fixed a Y2038 issue.  Thanks to Gwiz65.
+
 3 May 2014: dht-0.22
 
   * INCOMPATIBLE CHANGE: the callback now takes const arguments.
