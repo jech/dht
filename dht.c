@@ -1909,9 +1909,9 @@ dht_periodic(const void *buf, size_t buflen,
     if(buflen > 0) {
         int message;
         unsigned char tid[16], id[20], info_hash[20], target[20];
-        unsigned char nodes[256], nodes6[1024], token[128];
+        unsigned char nodes[26*16], nodes6[38*16], token[128];
         int tid_len = 16, token_len = 128;
-        int nodes_len = 256, nodes6_len = 1024;
+        int nodes_len = 26*16, nodes6_len = 38*16;
         unsigned short port;
         unsigned char values[2048], values6[2048];
         int values_len = 2048, values6_len = 2048;
