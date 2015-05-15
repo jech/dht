@@ -1709,6 +1709,8 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
  fail:
     free(buckets);
     buckets = NULL;
+    free(buckets6);
+    buckets6 = NULL;
     return -1;
 }
 
