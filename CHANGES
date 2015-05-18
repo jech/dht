@@ -1,3 +1,9 @@
+18 May 2015: dht-0.24
+
+  * Fixed off-by-one error that dropped find_nodes responses with exactly
+    16 nodes.  While forbidden by BEP-5, this is apparently what the good
+    folks at BitTorrent are doing.  Thanks to Tomas Brod.
+
 15 May 2015: dht-0.23
 
   * Changed the limit on the number of nodes in replies to 16.  Thanks to
