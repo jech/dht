@@ -1824,7 +1824,7 @@ neighbourhood_maintenance(int af)
     if(q) {
         /* Since our node-id is the same in both DHTs, it's probably
            profitable to query both families. */
-        int want = dht_socket >= 0 && dht_socket6 >= 0 ? (WANT4 | WANT6) : -1;
+        int want = ((dht_socket >= 0) ? WANT4 : 0) | ((dht_socket6 >= 0) ? WANT6 : 0);
         n = random_node(q);
         if(n) {
             unsigned char tid[4];
@@ -1881,20 +1881,20 @@ bucket_maintenance(int af)
                     unsigned char tid[4];
                     int want = -1;
 
-                    if(dht_socket >= 0 && dht_socket6 >= 0) {
+                    if(dht_socket >= 0 || dht_socket6 >= 0) {
                         struct bucket *otherbucket;
                         otherbucket =
                             find_bucket(id, af == AF_INET ? AF_INET6 : AF_INET);
                         if(otherbucket && otherbucket->count < 8)
                             /* The corresponding bucket in the other family
                                is emptyish -- querying both is useful. */
-                            want = WANT4 | WANT6;
+                            want = ((dht_socket >= 0) ? WANT4 : 0) | ((dht_socket6 >= 0) ? WANT6 : 0);
                         else if(random() % 37 == 0)
                             /* Most of the time, this just adds overhead.
                                However, it might help stitch back one of
                                the DHTs after a network collapse, so query
                                both, but only very occasionally. */
-                            want = WANT4 | WANT6;
+                            want = ((dht_socket >= 0) ? WANT4 : 0) | ((dht_socket6 >= 0) ? WANT6 : 0);
                     }
 
                     debugf("Sending find_node for%s bucket maintenance.\n",
