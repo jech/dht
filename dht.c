@@ -2728,12 +2728,12 @@ send_error(const struct sockaddr *sa, int salen,
            int code, const char *message)
 {
     char buf[512];
-    int i = 0, rc;
+    int i = 0, rc, message_len;
 
-    rc = snprintf(buf + i, 512 - i, "d1:eli%de%d:",
-                  code, (int)strlen(message));
+    message_len = strlen(message);
+    rc = snprintf(buf + i, 512 - i, "d1:eli%de%d:", code, message_len);
     INC(i, rc, 512);
-    COPY(buf, i, message, (int)strlen(message), 512);
+    COPY(buf, i, message, message_len, 512);
     rc = snprintf(buf + i, 512 - i, "e1:t%d:", tid_len); INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
     ADD_V(buf, i, 512);
