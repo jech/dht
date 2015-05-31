@@ -2238,8 +2238,8 @@ dht_periodic(const void *buf, size_t buflen,
 }
 
 int
-dht_get_nodes(struct sockaddr_in *sin, int *num,
-              struct sockaddr_in6 *sin6, int *num6)
+dht_get_nodes(struct sockaddr_in *sin, unsigned char* id, int *num,
+              struct sockaddr_in6 *sin6, unsigned char* id6, int *num6)
 {
     int i, j;
     struct bucket *b;
@@ -2257,6 +2257,7 @@ dht_get_nodes(struct sockaddr_in *sin, int *num,
     while(n && i < *num) {
         if(node_good(n)) {
             sin[i] = *(struct sockaddr_in*)&n->ss;
+			if(id) memcpy( &id[i * 20], n->id, 20 );
             i++;
         }
         n = n->next;
@@ -2269,6 +2270,7 @@ dht_get_nodes(struct sockaddr_in *sin, int *num,
             while(n && i < *num) {
                 if(node_good(n)) {
                     sin[i] = *(struct sockaddr_in*)&n->ss;
+					if(id) memcpy( &id[i * 20], n->id, 20 );
                     i++;
                 }
                 n = n->next;
@@ -2289,6 +2291,7 @@ dht_get_nodes(struct sockaddr_in *sin, int *num,
     while(n && j < *num6) {
         if(node_good(n)) {
             sin6[j] = *(struct sockaddr_in6*)&n->ss;
+			if(id6) memcpy( &id6[i * 20], n->id, 20 );
             j++;
         }
         n = n->next;
@@ -2301,6 +2304,7 @@ dht_get_nodes(struct sockaddr_in *sin, int *num,
             while(n && j < *num6) {
                 if(node_good(n)) {
                     sin6[j] = *(struct sockaddr_in6*)&n->ss;
+					if(id6) memcpy( &id6[i * 20], n->id, 20 );
                     j++;
                 }
                 n = n->next;
