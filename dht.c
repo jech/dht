@@ -488,7 +488,7 @@ find_bucket(unsigned const char *id, int af)
     if(b == NULL)
         return NULL;
 
-    while(1) {
+    for(;;) {
         if(b->next == NULL)
             return b;
         if(id_cmp(id, b->next->first) < 0)
@@ -505,7 +505,7 @@ previous_bucket(struct bucket *b)
     if(b == p)
         return NULL;
 
-    while(1) {
+    for(;;) {
         if(p->next == NULL)
             return NULL;
         if(p->next == b)
@@ -877,7 +877,7 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
     }
 
     /* Create a new node. */
-    n = calloc(1, sizeof(struct node));
+    n = (node*)calloc(1, sizeof(struct node));
     if(n == NULL)
         return NULL;
     memcpy(n->id, id, 20);
@@ -1178,7 +1178,7 @@ new_search(void)
 
     /* Allocate a new slot. */
     if(numsearches < DHT_MAX_SEARCHES) {
-        sr = calloc(1, sizeof(struct search));
+        sr = (search*)calloc(1, sizeof(struct search));
         if(sr != NULL) {
             sr->next = searches;
             searches = sr;
@@ -1289,7 +1289,7 @@ dht_search(const unsigned char *id, int port, int af,
         sr->numnodes = 0;
     }
 
-    sr->port = port;
+    sr->port = (unsigned short)port;
 
     insert_search_bucket(b, sr);
 
@@ -1349,7 +1349,7 @@ storage_store(const unsigned char *id,
     if(st == NULL) {
         if(numstorage >= DHT_MAX_HASHES)
             return -1;
-        st = calloc(1, sizeof(struct storage));
+        st = (struct storage*)calloc(1, sizeof(struct storage));
         if(st == NULL) return -1;
         memcpy(st->id, id, 20);
         st->next = storage;
@@ -1377,7 +1377,7 @@ storage_store(const unsigned char *id,
                 return 0;
             n = st->maxpeers == 0 ? 2 : 2 * st->maxpeers;
             n = MIN(n, DHT_MAX_PEERS);
-            new_peers = realloc(st->peers, n * sizeof(struct peer));
+            new_peers = (peer*)realloc(st->peers, n * sizeof(struct peer));
             if(new_peers == NULL)
                 return -1;
             st->peers = new_peers;
@@ -1385,7 +1385,7 @@ storage_store(const unsigned char *id,
         }
         p = &st->peers[st->numpeers++];
         p->time = now.tv_sec;
-        p->len = len;
+        p->len = (unsigned short)len;
         memcpy(p->ip, ip, len);
         p->port = port;
         return 1;
@@ -1666,7 +1666,7 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
     numstorage = 0;
 
     if(s >= 0) {
-        buckets = calloc(sizeof(struct bucket), 1);
+        buckets = (bucket*)calloc(sizeof(struct bucket), 1);
         if(buckets == NULL)
             return -1;
         buckets->af = AF_INET;
@@ -1677,7 +1677,7 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
     }
 
     if(s6 >= 0) {
-        buckets6 = calloc(sizeof(struct bucket), 1);
+        buckets6 = (bucket*)calloc(sizeof(struct bucket), 1);
         if(buckets6 == NULL)
             return -1;
         buckets6->af = AF_INET6;
@@ -1916,7 +1916,7 @@ bucket_maintenance(int af)
 }
 
 int
-dht_periodic(const void *buf, size_t buflen,
+dht_periodic(const unsigned char *buf, size_t buflen,
              const struct sockaddr *from, int fromlen,
              time_t *tosleep,
              dht_callback *callback, void *closure)
@@ -2756,8 +2756,8 @@ static void *
 dht_memmem(const void *haystack, size_t haystacklen,
            const void *needle, size_t needlelen)
 {
-    const char *h = haystack;
-    const char *n = needle;
+    const char *h = (const char*)haystack;
+    const char *n = (const char*)needle;
     size_t i;
 
     /* size_t is unsigned */
@@ -2797,7 +2797,7 @@ parse_message(const unsigned char *buf, int buflen,
     if(((unsigned char*)ptr) + (len) > (buf) + (buflen)) goto overflow;
 
     if(tid_return) {
-        p = dht_memmem(buf, buflen, "1:t", 3);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "1:t", 3);
         if(p) {
             long l;
             char *q;
@@ -2811,7 +2811,7 @@ parse_message(const unsigned char *buf, int buflen,
         }
     }
     if(id_return) {
-        p = dht_memmem(buf, buflen, "2:id20:", 7);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "2:id20:", 7);
         if(p) {
             CHECK(p + 7, 20);
             memcpy(id_return, p + 7, 20);
@@ -2820,7 +2820,7 @@ parse_message(const unsigned char *buf, int buflen,
         }
     }
     if(info_hash_return) {
-        p = dht_memmem(buf, buflen, "9:info_hash20:", 14);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "9:info_hash20:", 14);
         if(p) {
             CHECK(p + 14, 20);
             memcpy(info_hash_return, p + 14, 20);
@@ -2829,20 +2829,20 @@ parse_message(const unsigned char *buf, int buflen,
         }
     }
     if(port_return) {
-        p = dht_memmem(buf, buflen, "porti", 5);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "porti", 5);
         if(p) {
             long l;
             char *q;
             l = strtol((char*)p + 5, &q, 10);
             if(q && *q == 'e' && l > 0 && l < 0x10000)
-                *port_return = l;
+                *port_return = (unsigned short)l;
             else
                 *port_return = 0;
         } else
             *port_return = 0;
     }
     if(target_return) {
-        p = dht_memmem(buf, buflen, "6:target20:", 11);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "6:target20:", 11);
         if(p) {
             CHECK(p + 11, 20);
             memcpy(target_return, p + 11, 20);
@@ -2851,7 +2851,7 @@ parse_message(const unsigned char *buf, int buflen,
         }
     }
     if(token_return) {
-        p = dht_memmem(buf, buflen, "5:token", 7);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "5:token", 7);
         if(p) {
             long l;
             char *q;
@@ -2867,7 +2867,7 @@ parse_message(const unsigned char *buf, int buflen,
     }
 
     if(nodes_len) {
-        p = dht_memmem(buf, buflen, "5:nodes", 7);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "5:nodes", 7);
         if(p) {
             long l;
             char *q;
@@ -2883,7 +2883,7 @@ parse_message(const unsigned char *buf, int buflen,
     }
 
     if(nodes6_len) {
-        p = dht_memmem(buf, buflen, "6:nodes6", 8);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "6:nodes6", 8);
         if(p) {
             long l;
             char *q;
@@ -2899,7 +2899,7 @@ parse_message(const unsigned char *buf, int buflen,
     }
 
     if(values_len || values6_len) {
-        p = dht_memmem(buf, buflen, "6:valuesl", 9);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "6:valuesl", 9);
         if(p) {
             int i = p - buf + 9;
             int j = 0, j6 = 0;
@@ -2942,7 +2942,7 @@ parse_message(const unsigned char *buf, int buflen,
     }
 
     if(want_return) {
-        p = dht_memmem(buf, buflen, "4:wantl", 7);
+        p = (const unsigned char*)dht_memmem(buf, buflen, "4:wantl", 7);
         if(p) {
             int i = p - buf + 7;
             *want_return = 0;
