@@ -36,11 +36,11 @@ THE SOFTWARE.
 #include <errno.h>
 #include <string.h>
 #include <stdarg.h>
+#include <sys/time.h>
 
 #ifndef _WIN32
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/time.h>
 
 #include <arpa/inet.h>
 #include <sys/types.h>
