@@ -72,6 +72,12 @@ THE SOFTWARE.
 #define MSG_CONFIRM 0
 #endif
 
+#if !defined(_WIN32) || defined(__MINGW32__)
+#define dht_gettimeofday(_ts, _tz) gettimeofday((_ts), (_tz))
+#else
+extern int dht_gettimeofday(struct timeval *tv, struct timezone *tz);
+#endif
+
 #ifdef _WIN32
 
 #undef EAFNOSUPPORT
@@ -1699,7 +1705,7 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
         have_v = 0;
     }
 
-    gettimeofday(&now, NULL);
+    dht_gettimeofday(&now, NULL);
 
     mybucket_grow_time = now.tv_sec;
     mybucket6_grow_time = now.tv_sec;
@@ -1924,7 +1930,7 @@ dht_periodic(const void *buf, size_t buflen,
              time_t *tosleep,
              dht_callback *callback, void *closure)
 {
-    gettimeofday(&now, NULL);
+    dht_gettimeofday(&now, NULL);
 
     if(buflen > 0) {
         int message;
