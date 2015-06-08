@@ -36,7 +36,10 @@ THE SOFTWARE.
 #include <errno.h>
 #include <string.h>
 #include <stdarg.h>
+
+#if !defined(_WIN32) || defined(__MINGW32__)
 #include <sys/time.h>
+#endif
 
 #ifndef _WIN32
 #include <unistd.h>
