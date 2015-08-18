@@ -120,7 +120,7 @@ nodes; however, in order to avoid overloading your bootstrap nodes, you may
 want to wait until good is at least 4 and good + doubtful is at least 30 or
 so.
 
-It also includes the number of nodes that recently send us an unsolicited
+It also includes the number of nodes that recently sent us an unsolicited
 request; this can be used to determine if the UDP port used for the DHT is
 firewalled.
 
