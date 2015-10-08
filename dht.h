@@ -20,6 +20,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef void
 dht_callback(void *closure, int event,
              const unsigned char *info_hash,
@@ -56,3 +60,7 @@ void dht_hash(void *hash_return, int hash_size,
               const void *v2, int len2,
               const void *v3, int len3);
 int dht_random_bytes(void *buf, size_t size);
+
+#ifdef __cplusplus
+}
+#endif
