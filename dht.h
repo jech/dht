@@ -20,9 +20,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-#ifndef DHT_H
-#define DHT_H
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -66,5 +63,4 @@ int dht_random_bytes(void *buf, size_t size);
 
 #ifdef __cplusplus
 }
-#endif
 #endif
