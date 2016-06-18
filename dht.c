@@ -2340,7 +2340,7 @@ dht_insert_node(const unsigned char *id, struct sockaddr *sa, int salen)
 }
 
 int
-dht_ping_node(struct sockaddr *sa, int salen)
+dht_ping_node(const struct sockaddr *sa, int salen)
 {
     unsigned char tid[4];
 
