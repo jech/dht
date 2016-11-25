@@ -1692,8 +1692,10 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
         buckets6->af = AF_INET6;
 
         rc = set_nonblocking(s6, 1);
-        if(rc < 0)
+        if(rc < 0) {
+        	buckets = buckets6;
             goto fail;
+        }
     }
 
     memcpy(myid, id, 20);
