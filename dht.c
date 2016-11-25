@@ -732,7 +732,7 @@ node_blacklisted(const struct sockaddr *sa, int salen)
 static struct bucket *
 split_bucket(struct bucket *b)
 {
-    struct bucket *new;
+    struct bucket *newb;
     struct node *nodes;
     int rc;
     unsigned char new_id[20];
@@ -741,22 +741,22 @@ split_bucket(struct bucket *b)
     if(rc < 0)
         return NULL;
 
-    new = calloc(1, sizeof(struct bucket));
-    if(new == NULL)
+    newb = (bucket*)calloc(1, sizeof(struct bucket));
+    if(newb == NULL)
         return NULL;
 
-    new->af = b->af;
+    newb->af = b->af;
 
     send_cached_ping(b);
 
-    memcpy(new->first, new_id, 20);
-    new->time = b->time;
+    memcpy(newb->first, new_id, 20);
+    newb->time = b->time;
 
     nodes = b->nodes;
     b->nodes = NULL;
     b->count = 0;
-    new->next = b->next;
-    b->next = new;
+    newb->next = b->next;
+    b->next = newb;
     while(nodes) {
         struct node *n;
         n = nodes;
