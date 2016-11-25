@@ -352,9 +352,10 @@ static void
 debugf(const char *format, ...)
 {
     va_list args;
+    if(!dht_debug)
+        return;
     va_start(args, format);
-    if(dht_debug)
-        vfprintf(dht_debug, format, args);
+    vfprintf(dht_debug, format, args);
     va_end(args);
     if(dht_debug)
         fflush(dht_debug);
