@@ -13,6 +13,23 @@ dht_periodic whenever any data has arrived from the network.
 All functions return -1 in case of failure, in which case errno is set, or
 a positive value in case of success.
 
+Installation
+************
+
+DHT is essentially a two-file project, and building it is as simple as typing
+`make` in the repository folder.
+
+For a more sophisticated installation, you can use CMake, e.g.,
+```
+mkdir build
+cmake \
+  -DCMAKE_INSTALL_PREFIX:PATH=$HOME/tmp/dht \
+  -DBUILD_SHARED_LIBS:BOOL=ON \
+  ../
+make install
+```
+
+
 Initialisation
 **************
 
