@@ -10,6 +10,9 @@ ADD_LIBRARY(
   ${dht_SRCS}
   )
 
+find_library(LIBCRYPT_LIB NAMES crypt)
+target_link_libraries(dht ${LIBCRYPT_LIB})
+
 SET_TARGET_PROPERTIES(
   dht PROPERTIES
   PUBLIC_HEADER "${dht_HEADERS}"
@@ -25,8 +28,6 @@ INSTALL(
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT shlib # .a
   PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT dev
   )
-
-# Install the export set.
 INSTALL(
   EXPORT DhtLibraryDepends
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/dht"
