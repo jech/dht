@@ -315,8 +315,12 @@ main(int argc, char **argv)
        a dump) and you already know their ids, it's better to use
        dht_insert_node.  If the ids are incorrect, the DHT will recover. */
     for(i = 0; i < num_bootstrap_nodes; i++) {
-        dht_ping_node((struct sockaddr*)&bootstrap_nodes[i],
-                      sizeof(bootstrap_nodes[i]));
+        socklen_t salen;
+        if(bootstrap_nodes[i].ss_family == AF_INET)
+            salen = sizeof(struct sockaddr_in);
+        else
+            salen = sizeof(struct sockaddr_in6);
+        dht_ping_node((struct sockaddr*)&bootstrap_nodes[i],  salen);
         usleep(random() % 100000);
     }
 
