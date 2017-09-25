@@ -321,7 +321,7 @@ main(int argc, char **argv)
             salen = sizeof(struct sockaddr_in);
         else
             salen = sizeof(struct sockaddr_in6);
-        dht_ping_node((struct sockaddr*)&bootstrap_nodes[i],  salen);
+        dht_ping_node((struct sockaddr*)&bootstrap_nodes[i], salen);
         usleep(random() % 100000);
     }
 
