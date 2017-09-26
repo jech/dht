@@ -1041,6 +1041,7 @@ expire_searches(dht_callback *callback, void *closure)
                 previous->next = next;
             else
                 searches = next;
+            numsearches--;
             if (!sr->done) {
                 if(callback)
                     (*callback)(closure,
@@ -1049,7 +1050,6 @@ expire_searches(dht_callback *callback, void *closure)
                                 sr->id, NULL, 0);
             }
             free(sr);
-            numsearches--;
         } else {
             previous = sr;
         }
