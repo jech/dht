@@ -93,10 +93,11 @@ interesting happens (see below).
 * dht_search
 
 This schedules a search for information about the info-hash specified in
-id.  If port is not 0, it specifies the TCP port on which the current peer
-is listening; in that case, when the search is complete it will be announced
-to the network.  The port is in host order, beware if you got it from
-a struct sockaddr_in.
+id; it returns 1 if this is a new search, and 0 if it merely reset the
+timeouts for a search in progress.  If port is not 0, it specifies the TCP
+port on which the current peer is listening; in that case, when the search
+is complete it will be announced to the network.  The port is in host
+order, beware if you got it from a struct sockaddr_in.
 
 In either case, data is passed to the callback function as soon as it is
 available, possibly in multiple pieces.  The callback function will

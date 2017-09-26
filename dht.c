@@ -1030,7 +1030,7 @@ flush_search_node(struct search_node *n, struct search *sr)
 }
 
 static void
-expire_searches(void)
+expire_searches(dht_callback *callback, void *closure)
 {
     struct search *sr = searches, *previous = NULL;
 
@@ -1041,6 +1041,13 @@ expire_searches(void)
                 previous->next = next;
             else
                 searches = next;
+            if (!sr->done) {
+                if(callback)
+                    (*callback)(closure,
+                                sr->af == AF_INET ?
+                                DHT_EVENT_SEARCH_DONE : DHT_EVENT_SEARCH_DONE6,
+                                sr->id, NULL, 0);
+            }
             free(sr);
             numsearches--;
         } else {
@@ -1265,6 +1272,8 @@ dht_search(const unsigned char *id, int port, int af,
         sr = sr->next;
     }
 
+    int sr_duplicate = sr && !sr->done;
+
     if(sr) {
         /* We're reusing data from an old search.  Reusing the same tid
            means that we can merge replies for both searches. */
@@ -1314,7 +1323,11 @@ dht_search(const unsigned char *id, int port, int af,
 
     search_step(sr, callback, closure);
     search_time = now.tv_sec;
-    return 1;
+    if(sr_duplicate) {
+        return 0;
+    } else {
+        return 1;
+    }
 }
 
 /* A struct storage stores all the stored peer addresses for a given info
@@ -2182,7 +2195,7 @@ dht_periodic(const void *buf, size_t buflen,
         expire_buckets(buckets);
         expire_buckets(buckets6);
         expire_storage();
-        expire_searches();
+        expire_searches(callback, closure);
     }
 
     if(search_time > 0 && now.tv_sec >= search_time) {
