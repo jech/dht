@@ -1,9 +1,6 @@
 /* This example code was written by Juliusz Chroboczek.
    You are free to cut'n'paste from it to your heart's content. */
 
-/* For crypt */
-#define _GNU_SOURCE
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
