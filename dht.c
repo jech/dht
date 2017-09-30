@@ -296,11 +296,6 @@ static int parse_message(const unsigned char *buf, int buflen,
                          int *want_return);
 
 static const unsigned char zeroes[20] = {0};
-static const unsigned char ones[20] = {
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF
-};
 static const unsigned char v4prefix[16] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0
 };
