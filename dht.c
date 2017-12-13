@@ -207,6 +207,10 @@ struct peer {
 #define DHT_INFLIGHT_QUERIES 4
 #endif
 
+#ifndef DHT_SEARCH_RETRANSMIT
+#define DHT_SEARCH_RETRANSMIT 1
+#endif
+
 struct storage {
     unsigned char id[20];
     int numpeers, maxpeers;
@@ -1045,19 +1049,19 @@ search_send_get_peers(struct search *sr, struct search_node *n)
         int i;
         for(i = 0; i < sr->numnodes; i++) {
             if(sr->nodes[i].pinged < 3 && !sr->nodes[i].replied &&
-               sr->nodes[i].request_time < now.tv_sec - 15)
+               sr->nodes[i].request_time < now.tv_sec - DHT_SEARCH_RETRANSMIT)
                 n = &sr->nodes[i];
         }
     }
 
     if(!n || n->pinged >= 3 || n->replied ||
-       n->request_time >= now.tv_sec - 15)
+       n->request_time >= now.tv_sec - DHT_SEARCH_RETRANSMIT)
         return 0;
 
     debugf("Sending get_peers.\n");
     make_tid(tid, "gp", sr->tid);
     send_get_peers((struct sockaddr*)&n->ss, n->sslen, tid, 4, sr->id, -1,
-                   n->reply_time >= now.tv_sec - 15);
+                   n->reply_time >= now.tv_sec - DHT_SEARCH_RETRANSMIT);
     n->pinged++;
     n->request_time = now.tv_sec;
     /* If the node happens to be in our main routing table, mark it
@@ -1129,7 +1133,7 @@ search_step(struct search *sr, dht_callback *callback, void *closure)
         return;
     }
 
-    if(sr->step_time + 15 >= now.tv_sec)
+    if(sr->step_time + DHT_SEARCH_RETRANSMIT >= now.tv_sec)
         return;
 
     j = 0;
