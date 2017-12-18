@@ -1617,7 +1617,7 @@ dht_dump_tables(FILE *f)
             if(n->pinged)
                 fprintf(f, " (%d)", n->pinged);
             fprintf(f, "%s%s.\n",
-                    find_node(n->id, AF_INET) ? " (known)" : "",
+                    find_node(n->id, sr->af) ? " (known)" : "",
                     n->replied ? " (replied)" : "");
         }
         sr = sr->next;
