@@ -2,6 +2,8 @@ dht-0.25 (unreleased)
 
   * Made the sendto function used by the library customisable.  This is an
     incompatible change.
+  * Rely on the caller to mark the sockets as nonblocking.  This is an
+    incompatible change.
   * Report duplicate searches reliably.  Thanks to Greg Hazel.
   * Increased the number of in-flight queries to 4.  Thanks to Greg Hazel.
   * Implement variable-size buckets (between 8 and 128).  Thanks to Greg
