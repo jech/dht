@@ -1879,9 +1879,10 @@ bucket_maintenance(int af)
                         struct bucket *otherbucket;
                         otherbucket =
                             find_bucket(id, af == AF_INET ? AF_INET6 : AF_INET);
-                        if(otherbucket && otherbucket->count < 8)
+                        if(otherbucket &&
+                           otherbucket->count < otherbucket->max_count)
                             /* The corresponding bucket in the other family
-                               is emptyish -- querying both is useful. */
+                               is not full -- querying both is useful. */
                             want = WANT4 | WANT6;
                         else if(random() % 37 == 0)
                             /* Most of the time, this just adds overhead.
