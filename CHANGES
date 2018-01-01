@@ -1,3 +1,10 @@
+dht-0.25 (unreleased)
+
+  * Made the sendto function used by the library customisable.  This is an
+    incompatible change.
+  * Report duplicate searches reliably.  Thanks to Greg Hazel.
+  * Increased the number of in-flight queries to 4.  Thanks to Greg Hazel.
+
 18 May 2015: dht-0.24
 
   * Fixed off-by-one error that dropped find_nodes responses with exactly
