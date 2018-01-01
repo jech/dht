@@ -252,6 +252,9 @@ static int send_error(const struct sockaddr *sa, int salen,
                       unsigned char *tid, int tid_len,
                       int code, const char *message);
 
+static void
+add_search_node(const unsigned char *id, const struct sockaddr *sa, int salen);
+
 #define ERROR 0
 #define REPLY 1
 #define PING 2
@@ -941,8 +944,8 @@ find_search(unsigned short tid, int af)
    target.  We just got a new candidate, insert it at the right spot or
    discard it. */
 
-static int
-insert_search_node(unsigned char *id,
+static struct search_node*
+insert_search_node(const unsigned char *id,
                    const struct sockaddr *sa, int salen,
                    struct search *sr, int replied,
                    unsigned char *token, int token_len)
@@ -952,7 +955,7 @@ insert_search_node(unsigned char *id,
 
     if(sa->sa_family != sr->af) {
         debugf("Attempted to insert node in the wrong family.\n");
-        return 0;
+        return NULL;
     }
 
     for(i = 0; i < sr->numnodes; i++) {
@@ -965,7 +968,7 @@ insert_search_node(unsigned char *id,
     }
 
     if(i == SEARCH_NODES)
-        return 0;
+        return NULL;
 
     if(sr->numnodes < SEARCH_NODES)
         sr->numnodes++;
@@ -998,7 +1001,7 @@ found:
         }
     }
 
-    return 1;
+    return n;
 }
 
 static void
@@ -1069,6 +1072,21 @@ search_send_get_peers(struct search *sr, struct search_node *n)
     node = find_node(n->id, n->ss.ss_family);
     if(node) pinged(node, NULL);
     return 1;
+}
+
+/* Insert a new node into any incomplete search. */
+static void
+add_search_node(const unsigned char *id, const struct sockaddr *sa, int salen)
+{
+    struct search *sr;
+    for(sr = searches; sr; sr = sr->next) {
+        if(sr->af == sa->sa_family && sr->numnodes < SEARCH_NODES) {
+            struct search_node *n =
+                insert_search_node(id, sa, salen, sr, 0, NULL, 0);
+            if(n)
+                search_send_get_peers(sr, n);
+        }
+    }
 }
 
 /* When a search is in progress, we periodically call search_step to send
