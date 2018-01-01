@@ -708,7 +708,6 @@ node_blacklisted(const struct sockaddr *sa, int salen)
     return 0;
 }
 
-/* Split a bucket into two equal parts. */
 static struct bucket *
 split_bucket(struct bucket *b)
 {
