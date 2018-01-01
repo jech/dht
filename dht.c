@@ -756,7 +756,7 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
 {
     struct bucket *b = find_bucket(id, sa->sa_family);
     struct node *n;
-    int mybucket, split;
+    int mybucket;
 
     if(b == NULL)
         return NULL;
@@ -840,19 +840,7 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
             n = n->next;
         }
 
-        split = 0;
-        if(mybucket) {
-            if(!dubious)
-                split = 1;
-            /* If there's only one bucket, split eagerly.  This is
-               incorrect unless there's more than max_nodes nodes in the DHT. */
-            else if(b->af == AF_INET && buckets->next == NULL)
-                split = 1;
-            else if(b->af == AF_INET6 && buckets6->next == NULL)
-                split = 1;
-        }
-
-        if(split) {
+        if(!dubious) {
             debugf("Splitting.\n");
             b = split_bucket(b);
             return new_node(id, sa, salen, confirm);
