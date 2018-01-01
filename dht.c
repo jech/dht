@@ -800,6 +800,8 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
                     n->pinged_time = 0;
                 }
             }
+            if(confirm == 2)
+                add_search_node(id, sa, salen);
             return n;
         }
         n = n->next;
@@ -824,6 +826,8 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
             n->reply_time = confirm >= 2 ? now.tv_sec : 0;
             n->pinged_time = 0;
             n->pinged = 0;
+            if(confirm == 2)
+                add_search_node(id, sa, salen);
             return n;
         }
         n = n->next;
@@ -866,6 +870,8 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
             b->cachedlen = salen;
         }
 
+        if(confirm == 2)
+            add_search_node(id, sa, salen);
         return NULL;
     }
 
@@ -881,6 +887,8 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
     n->next = b->nodes;
     b->nodes = n;
     b->count++;
+    if(confirm == 2)
+        add_search_node(id, sa, salen);
     return n;
 }
 
