@@ -569,19 +569,19 @@ bucket_random(struct bucket *b, unsigned char *id_return)
     return 1;
 }
 
-/* Insert a new node into a bucket. */
-static struct node *
+/* Insert a new node into a bucket.  Returns true if the node was inserted. */
+int
 insert_node(struct node *node)
 {
     struct bucket *b = find_bucket(node->id, node->ss.ss_family);
 
-    if(b == NULL)
-        return NULL;
+    if(b == NULL || b->count >= 8)
+        return 0;
 
     node->next = b->nodes;
     b->nodes = node;
     b->count++;
-    return node;
+    return 1;
 }
 
 /* This is our definition of a known-good node. */
@@ -731,7 +731,11 @@ split_bucket(struct bucket *b)
         struct node *n;
         n = nodes;
         nodes = nodes->next;
-        insert_node(n);
+        rc = insert_node(n);
+        if(!rc) {
+            debugf("Couldn't insert node");
+            free(n);
+        }
     }
     return b;
 }
