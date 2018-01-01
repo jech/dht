@@ -570,15 +570,24 @@ bucket_random(struct bucket *b, unsigned char *id_return)
     return 1;
 }
 
-/* Insert a new node into a bucket.  Returns true if the node was inserted. */
+/* Insert a new node into a bucket.
+   Returns 1 if the node was inserted, 0 if it was cached, -1 otherwise. */
 int
 insert_node(struct node *node)
 {
     struct bucket *b = find_bucket(node->id, node->ss.ss_family);
 
-    if(b == NULL || b->count >= b->max_count)
-        return 0;
+    if(b == NULL)
+        return -1;
 
+    if(b->count >= b->max_count) {
+        if(b->cached.ss_family == 0) {
+            memcpy(&b->cached, &node->ss, node->sslen);
+            b->cachedlen = node->sslen;
+            return 0;
+        }
+        return -1;
+    }
     node->next = b->nodes;
     b->nodes = node;
     b->count++;
@@ -740,8 +749,7 @@ split_bucket(struct bucket *b)
         struct node *n = nodes;
         nodes = nodes->next;
         rc = insert_node(n);
-        if(!rc) {
-            debugf("Couldn't insert node");
+        if(rc <= 0) {
             free(n);
         }
     }
