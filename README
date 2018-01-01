@@ -18,12 +18,19 @@ Initialisation
 
 * dht_init
 
-This must be called before using the library.  You pass it a bound IPv4
-datagram socket, a bound IPv6 datagram socket, and your node id, a 20-octet
-array that should be globally unique.
+This must be called before using the library.  You pass it an integer
+identifying a bound IPv4 datagram socket in non-blocking mode, an integer
+identifying a bound IPv6 datagram socket in non-blocking mode, and your
+node id, a 20-octet array that should be globally unique.
 
-If you're on a multi-homed host, you should bind the sockets to one of your
-addresses.
+The integers that identify the two sockets should usually be file
+descriptors; however, as the library does not directly perform any socket-
+or file-related operations on them, they can be arbitrary integers, for
+example indices in a table of structures that represent sockets in your
+code.
+
+If you're on a multi-homed host, you should bind your sockets to one of
+your addresses.  This is especially relevant for IPv6.
 
 Node ids must be well distributed, so you cannot just use your Bittorrent
 id; you should either generate a truly random value (using plenty of
@@ -158,6 +165,12 @@ of the search.
 In the case of DHT_EVENT_VALUES, data is a list of nodes in ``compact''
 format -- 6 or 18 bytes per node.  Its length in bytes is in data_len.
 
+* dht_sendto
+
+This will be called whenever the library needs to send a datagram.  If the
+integers passed to dht_init are file descriptors, this can simply be an
+alias for the sendto system call.
+
 * dht_blacklisted
 
 This is a function that takes an IP address and returns true if this
@@ -188,11 +201,6 @@ While there is no periodic pinging in this implementation, maintaining
 a full routing table requires slightly more than one packet exchange per
 minute, even in a completely idle network; this should be sufficient to
 make most full cone NATs happy.
-
-* Missing functionality
-
-Some of the code has had very little testing.  If it breaks, you get to
-keep both pieces.
 
 
                                         Juliusz Chroboczek

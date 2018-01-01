@@ -91,6 +91,22 @@ callback(void *closure,
 
 static unsigned char buf[4096];
 
+static int
+set_nonblocking(int fd, int nonblocking)
+{
+    int rc;
+    rc = fcntl(fd, F_GETFL, 0);
+    if(rc < 0)
+        return -1;
+
+    rc = fcntl(fd, F_SETFL, nonblocking?(rc | O_NONBLOCK):(rc & ~O_NONBLOCK));
+    if(rc < 0)
+        return -1;
+
+    return 0;
+}
+
+
 int
 main(int argc, char **argv)
 {
@@ -112,8 +128,6 @@ main(int argc, char **argv)
 
     memset(&sin6, 0, sizeof(sin6));
     sin6.sin6_family = AF_INET6;
-
-
 
     while(1) {
         opt = getopt(argc, argv, "q46b:i:");
@@ -158,7 +172,7 @@ main(int argc, char **argv)
             have_id = 1;
         close(fd);
     }
-    
+
     fd = open("/dev/urandom", O_RDONLY);
     if(fd < 0) {
         perror("open(random)");
@@ -250,12 +264,22 @@ main(int argc, char **argv)
         if(s < 0) {
             perror("socket(IPv4)");
         }
+        rc = set_nonblocking(s, 1);
+        if(rc < 0) {
+            perror("set_nonblocking(IPv4)");
+            exit(1);
+        }
     }
 
     if(ipv6) {
         s6 = socket(PF_INET6, SOCK_DGRAM, 0);
         if(s6 < 0) {
             perror("socket(IPv6)");
+        }
+        rc = set_nonblocking(s6, 1);
+        if(rc < 0) {
+            perror("set_nonblocking(IPv6)");
+            exit(1);
         }
     }
 
@@ -415,6 +439,13 @@ main(int argc, char **argv)
 }
 
 /* Functions called by the DHT. */
+
+int
+dht_sendto(int sockfd, const void *buf, int len, int flags,
+           const struct sockaddr *to, int tolen)
+{
+    return sendto(sockfd, buf, len, flags, to, tolen);
+}
 
 int
 dht_blacklisted(const struct sockaddr *sa, int salen)

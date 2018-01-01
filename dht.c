@@ -84,18 +84,6 @@ extern int dht_gettimeofday(struct timeval *tv, struct timezone *tz);
 #define EAFNOSUPPORT WSAEAFNOSUPPORT
 
 static int
-set_nonblocking(int fd, int nonblocking)
-{
-    int rc;
-
-    unsigned long mode = !!nonblocking;
-    rc = ioctlsocket(fd, FIONBIO, &mode);
-    if(rc != 0)
-        errno = WSAGetLastError();
-    return (rc == 0 ? 0 : -1);
-}
-
-static int
 random(void)
 {
     return rand();
@@ -110,23 +98,6 @@ extern const char *inet_ntop(int, const void *, char *, socklen_t);
 /* There is no snprintf in MSVCRT. */
 #define snprintf _snprintf
 #endif
-
-#else
-
-static int
-set_nonblocking(int fd, int nonblocking)
-{
-    int rc;
-    rc = fcntl(fd, F_GETFL, 0);
-    if(rc < 0)
-        return -1;
-
-    rc = fcntl(fd, F_SETFL, nonblocking?(rc | O_NONBLOCK):(rc & ~O_NONBLOCK));
-    if(rc < 0)
-        return -1;
-
-    return 0;
-}
 
 #endif
 
@@ -1691,10 +1662,6 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
         if(buckets == NULL)
             return -1;
         buckets->af = AF_INET;
-
-        rc = set_nonblocking(s, 1);
-        if(rc < 0)
-            goto fail;
     }
 
     if(s6 >= 0) {
@@ -1702,10 +1669,6 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
         if(buckets6 == NULL)
             return -1;
         buckets6->af = AF_INET6;
-
-        rc = set_nonblocking(s6, 1);
-        if(rc < 0)
-            goto fail;
     }
 
     memcpy(myid, id, 20);
@@ -2408,7 +2371,7 @@ dht_send(const void *buf, size_t len, int flags,
         return -1;
     }
 
-    return sendto(s, buf, len, flags, sa, salen);
+    return dht_sendto(s, buf, len, flags, sa, salen);
 }
 
 int
