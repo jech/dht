@@ -4,6 +4,9 @@ dht-0.25 (unreleased)
     incompatible change.
   * Report duplicate searches reliably.  Thanks to Greg Hazel.
   * Increased the number of in-flight queries to 4.  Thanks to Greg Hazel.
+  * Implement variable-size buckets (between 8 and 128).  Thanks to Greg
+    Hazel.
+  * Improved search speed during bootstrap.  Thanks to Greg Hazel.
 
 18 May 2015: dht-0.24
 
