@@ -860,7 +860,7 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
             n = n->next;
         }
 
-        if(!dubious) {
+        if(mybucket && !dubious) {
             debugf("Splitting.\n");
             b = split_bucket(b);
             return new_node(id, sa, salen, confirm);
