@@ -1938,8 +1938,10 @@ bucket_maintenance(int af)
     b = af == AF_INET ? buckets : buckets6;
 
     while(b) {
+        /* 10 minutes for an 8-node bucket */
+        int to = MAX(600 / (b->max_count / 8), 30);
         struct bucket *q;
-        if(b->time < now.tv_sec - 600) {
+        if(b->time < now.tv_sec - to) {
             /* This bucket hasn't seen any positive confirmation for a long
                time.  Pick a random id in this bucket's range, and send
                a request to a random node. */
@@ -2304,12 +2306,14 @@ dht_periodic(const void *buf, size_t buflen,
                 soon |= neighbourhood_maintenance(AF_INET6);
         }
 
-        /* In order to maintain all buckets' age within 600 seconds, worst
-           case is roughly 27 seconds, assuming the table is 22 bits deep.
-           We want to keep a margin for neighborhood maintenance, so keep
-           this within 25 seconds. */
+        /* Given the timeouts in bucket_maintenance, with a 22-bucket
+           table, worst case is a ping every 18 seconds (22 buckets plus
+           11 buckets overhead for the larger buckets).  Keep the "soon"
+           case within 15 seconds, which gives some margin for neighbourhood
+           maintenance. */
+
         if(soon)
-            confirm_nodes_time = now.tv_sec + 5 + random() % 20;
+            confirm_nodes_time = now.tv_sec + 5 + random() % 10;
         else
             confirm_nodes_time = now.tv_sec + 60 + random() % 120;
     }
