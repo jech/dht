@@ -2264,7 +2264,8 @@ dht_periodic(const void *buf, size_t buflen,
         struct search *sr;
         sr = searches;
         while(sr) {
-            if(!sr->done && sr->step_time + 5 <= now.tv_sec) {
+            if(!sr->done &&
+               sr->step_time + DHT_SEARCH_RETRANSMIT / 2 + 1 <= now.tv_sec) {
                 search_step(sr, callback, closure);
             }
             sr = sr->next;
@@ -2275,7 +2276,8 @@ dht_periodic(const void *buf, size_t buflen,
         sr = searches;
         while(sr) {
             if(!sr->done) {
-                time_t tm = sr->step_time + 15 + random() % 10;
+                time_t tm = sr->step_time +
+                    DHT_SEARCH_RETRANSMIT + random() % DHT_SEARCH_RETRANSMIT;
                 if(search_time == 0 || search_time > tm)
                     search_time = tm;
             }
