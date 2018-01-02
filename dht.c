@@ -829,10 +829,13 @@ static struct node *
 new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
          int confirm)
 {
-    struct bucket *b = find_bucket(id, sa->sa_family);
+    struct bucket *b;
     struct node *n;
     int mybucket;
 
+ again:
+
+    b = find_bucket(id, sa->sa_family);
     if(b == NULL)
         return NULL;
 
@@ -920,8 +923,11 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
         }
 
         if(mybucket && !dubious) {
-            split_bucket(b);
-            return new_node(id, sa, salen, confirm);
+            int rc;
+            rc = split_bucket(b);
+            if(rc > 0)
+                goto again;
+            return NULL;
         }
 
         /* No space for this node.  Cache it away for later. */
