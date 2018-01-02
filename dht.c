@@ -203,12 +203,14 @@ struct peer {
 #define DHT_SEARCH_EXPIRE_TIME (62 * 60)
 #endif
 
+/* The maximum number of in-flight queries per search. */
 #ifndef DHT_INFLIGHT_QUERIES
 #define DHT_INFLIGHT_QUERIES 4
 #endif
 
+/* The retransmit timeout when performing searches. */
 #ifndef DHT_SEARCH_RETRANSMIT
-#define DHT_SEARCH_RETRANSMIT 1
+#define DHT_SEARCH_RETRANSMIT 10
 #endif
 
 struct storage {
