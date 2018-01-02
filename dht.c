@@ -693,10 +693,29 @@ node_blacklisted(const struct sockaddr *sa, int salen)
     return 0;
 }
 
-/* Insert a new node into a bucket.
-   Returns 1 if the node was inserted, 0 if it was cached, -1 otherwise. */
-int
-insert_node(struct node *node)
+static struct node *
+append_nodes(struct node *n1, struct node *n2)
+{
+    struct node *n;
+
+    if(n1 == NULL)
+        return n2;
+
+    if(n2 == NULL)
+        return n1;
+
+    n = n1;
+    while(n->next != NULL)
+        n = n->next;
+
+    n->next = n2;
+    return n1;
+}
+
+/* Insert a new node into a bucket, don't check for duplicates.
+   Returns 1 if the node was inserted, 0 if a bucket must be split. */
+static int
+insert_node(struct node *node, struct bucket **split_return)
 {
     struct bucket *b = find_bucket(node->id, node->ss.ss_family);
 
@@ -704,12 +723,8 @@ insert_node(struct node *node)
         return -1;
 
     if(b->count >= b->max_count) {
-        if(b->cached.ss_family == 0) {
-            memcpy(&b->cached, &node->ss, node->sslen);
-            b->cachedlen = node->sslen;
-            return 0;
-        }
-        return -1;
+        *split_return = b;
+        return 0;
     }
     node->next = b->nodes;
     b->nodes = node;
@@ -717,51 +732,95 @@ insert_node(struct node *node)
     return 1;
 }
 
-static struct bucket *
-split_bucket(struct bucket *b)
+/* Splits a bucket, and returns the list of nodes that must be reinserted
+   into the routing table. */
+static int
+split_bucket_helper(struct bucket *b, struct node **nodes_return)
 {
     struct bucket *new;
-    struct node *nodes;
     int rc;
     unsigned char new_id[20];
 
+    if(!in_bucket(myid, b)) {
+        debugf("Attempted to split wrong bucket.\n");
+        return -1;
+    }
+
     rc = bucket_middle(b, new_id);
     if(rc < 0)
-        return NULL;
+        return -1;
 
     new = calloc(1, sizeof(struct bucket));
     if(new == NULL)
-        return NULL;
-
-    new->af = b->af;
+        return -1;
 
     send_cached_ping(b);
 
+    new->af = b->af;
     memcpy(new->first, new_id, 20);
     new->time = b->time;
 
-    nodes = b->nodes;
+    *nodes_return = b->nodes;
     b->nodes = NULL;
     b->count = 0;
     new->next = b->next;
     b->next = new;
 
-    if (in_bucket(myid, b)) {
+    if(in_bucket(myid, b)) {
         new->max_count = b->max_count;
         b->max_count = MAX(b->max_count / 2, 8);
     } else {
         new->max_count = MAX(b->max_count / 2, 8);
     }
 
-    while(nodes) {
-        struct node *n = nodes;
-        nodes = nodes->next;
-        rc = insert_node(n);
-        if(rc <= 0) {
+    return 1;
+}
+
+static int
+split_bucket(struct bucket *b)
+{
+    int rc;
+    struct node *nodes = NULL;
+    struct node *n = NULL;
+
+    debugf("Splitting.\n");
+    rc = split_bucket_helper(b, &nodes);
+    if(rc < 0) {
+        debugf("Couldn't split bucket");
+        return -1;
+    }
+
+    while(n != NULL || nodes != NULL) {
+        struct bucket *split = NULL;
+        if(n == NULL) {
+            n = nodes;
+            nodes = nodes->next;
+            n->next = NULL;
+        }
+        rc = insert_node(n, &split);
+        if(rc < 0) {
+            debugf("Couldn't insert node.\n");
             free(n);
+            n = NULL;
+        } else if(rc > 0) {
+            n = NULL;
+        } else if(!in_bucket(myid, split)) {
+            free(n);
+            n = NULL;
+        } else {
+            struct node *insert = NULL;
+            debugf("Splitting (recursive).\n");
+            rc = split_bucket_helper(split, &insert);
+            if(rc < 0) {
+                debugf("Couldn't split bucket.\n");
+                free(n);
+                n = NULL;
+            } else {
+                nodes = append_nodes(nodes, insert);
+            }
         }
     }
-    return b;
+    return 1;
 }
 
 /* We just learnt about a node, not necessarily a new one.  Confirm is 1 if
@@ -861,8 +920,7 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
         }
 
         if(mybucket && !dubious) {
-            debugf("Splitting.\n");
-            b = split_bucket(b);
+            split_bucket(b);
             return new_node(id, sa, salen, confirm);
         }
 
