@@ -579,30 +579,6 @@ bucket_random(struct bucket *b, unsigned char *id_return)
     return 1;
 }
 
-/* Insert a new node into a bucket.
-   Returns 1 if the node was inserted, 0 if it was cached, -1 otherwise. */
-int
-insert_node(struct node *node)
-{
-    struct bucket *b = find_bucket(node->id, node->ss.ss_family);
-
-    if(b == NULL)
-        return -1;
-
-    if(b->count >= b->max_count) {
-        if(b->cached.ss_family == 0) {
-            memcpy(&b->cached, &node->ss, node->sslen);
-            b->cachedlen = node->sslen;
-            return 0;
-        }
-        return -1;
-    }
-    node->next = b->nodes;
-    b->nodes = node;
-    b->count++;
-    return 1;
-}
-
 /* This is our definition of a known-good node. */
 static int
 node_good(struct node *node)
@@ -715,6 +691,30 @@ node_blacklisted(const struct sockaddr *sa, int salen)
     }
 
     return 0;
+}
+
+/* Insert a new node into a bucket.
+   Returns 1 if the node was inserted, 0 if it was cached, -1 otherwise. */
+int
+insert_node(struct node *node)
+{
+    struct bucket *b = find_bucket(node->id, node->ss.ss_family);
+
+    if(b == NULL)
+        return -1;
+
+    if(b->count >= b->max_count) {
+        if(b->cached.ss_family == 0) {
+            memcpy(&b->cached, &node->ss, node->sslen);
+            b->cachedlen = node->sslen;
+            return 0;
+        }
+        return -1;
+    }
+    node->next = b->nodes;
+    b->nodes = node;
+    b->count++;
+    return 1;
 }
 
 static struct bucket *
