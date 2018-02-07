@@ -177,12 +177,13 @@ really must -- Kademlia supposes transitive reachability.
 * dht_hash
 
 This should compute a reasonably strong cryptographic hash of the passed
-values.  It should map cleanly to your favourite crypto toolkit's MD5 or
-SHA-1 function.
+values.  SHA-1 should be good enough.
 
 * dht_random_bytes
 
-This should fill the supplied buffer with true random bytes.
+This should fill the supplied buffer with cryptographically strong random
+bytes.  It's called every 30 minutes on average, so it doesn't need to be
+fast.
 
 Final notes
 ***********
