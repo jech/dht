@@ -2925,11 +2925,11 @@ parse_message(const unsigned char *buf, int buflen,
         }
     }
     if(port_return) {
-        p = dht_memmem(buf, buflen, "porti", 5);
+        p = dht_memmem(buf, buflen, "4:porti", 7);
         if(p) {
             long l;
             char *q;
-            l = strtol((char*)p + 5, &q, 10);
+            l = strtol((char*)p + 7, &q, 10);
             if(q && *q == 'e' && l > 0 && l < 0x10000)
                 *port_return = l;
             else
