@@ -11,6 +11,8 @@ dht-0.25 (unreleased)
   * Improved search speed during bootstrap.  Thanks to Greg Hazel.
   * Fixed a bug in the parser that would spuriously insert peers with port
     number 1.  Thanks to Carl Reinke.
+  * Added support for the implied_port parameter of the announce_peer
+    message.  Thanks to Carl Reinke for pointing out the omission.
 
 18 May 2015: dht-0.24
 
