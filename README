@@ -63,22 +63,19 @@ inserted.
 * dht_insert_node
 
 This is a softer bootstrapping method, which doesn't actually send
-a query -- it only stores the node in the routing table for later use.  It
-is a good idea to use that when e.g. restoring your routing table from
-disk.
+a query -- it only stores the node in the routing table for later use.
 
 Note that dht_insert_node requires that you supply a node id.  If the id
 turns out to be wrong, the DHT will eventually recover; still, inserting
-massive amounts of incorrect information into your routing table is
-certainly not a good idea.
+massive amounts of incorrect information into your routing table is not
+a good idea.
 
-An additionaly difficulty with dht_insert_node is that, for various
-reasons, a Kademlia routing table cannot absorb nodes faster than a certain
-rate.  Dumping a large number of nodes into a table using dht_insert_node
-will probably cause most of these nodes to be discarded straight away.
-(The tolerable rate is difficult to estimate; it is probably on the order
-of one node every few seconds per node already in the table divided by 8,
-for some suitable value of 8.)
+An additionaly difficulty with dht_insert_node is that a Kademlia routing
+table cannot absorb nodes faster than a certain rate.  A freshly initialised
+routing table is able to absorb 128 nodes of each address family without
+dropping any.  The tolerable rate after that is difficult to estimate: it is
+probably on the order of one node every few seconds per node already in
+the table divided by 8, for some suitable value of 8.
 
 Doing some work
 ***************
@@ -107,8 +104,8 @@ is complete it will be announced to the network.  The port is in host
 order, beware if you got it from a struct sockaddr_in.
 
 In either case, data is passed to the callback function as soon as it is
-available, possibly in multiple pieces.  The callback function will
-additionally be called when the search is complete.
+available, possibly in multiple pieces.  The callback function will also
+be called when the search is complete.
 
 Up to DHT_MAX_SEARCHES (1024) searches can be in progress at a given time;
 any more, and dht_search will return -1.  If you specify a new search for
