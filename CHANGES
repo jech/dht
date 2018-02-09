@@ -1,4 +1,4 @@
-dht-0.25 (unreleased)
+9 February 2018: dht-0.25
 
   * Made the sendto function used by the library customisable.  This is an
     incompatible change.
