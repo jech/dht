@@ -2245,10 +2245,7 @@ dht_periodic(const void *buf, size_t buflen,
                 break;
             }
             if(implied_port != 0) {
-                if(port != 0) {
-                    debugf("Both port and implied_port.\n");
-                    /* But continue, that's what the spec says. */
-                }
+                /* Do this even if port > 0.  That's what the spec says. */
                 switch(from->sa_family) {
                 case AF_INET:
                     port = htons(((struct sockaddr_in*)from)->sin_port);
