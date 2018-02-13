@@ -85,7 +85,7 @@ callback(void *closure,
 {
     if(event == DHT_EVENT_SEARCH_DONE)
         printf("Search done.\n");
-    else if(event == DHT_EVENT_SEARCH_DONE)
+    else if(event == DHT_EVENT_SEARCH_DONE6)
         printf("IPv6 search done.\n");
     else if(event == DHT_EVENT_VALUES)
         printf("Received %d values.\n", (int)(data_len / 6));
