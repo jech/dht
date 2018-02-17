@@ -25,9 +25,9 @@ extern "C" {
 #endif
 
 typedef void
-dht_callback(void *closure, int event,
-             const unsigned char *info_hash,
-             const void *data, size_t data_len);
+dht_callback_t(void *closure, int event,
+               const unsigned char *info_hash,
+               const void *data, size_t data_len);
 
 #define DHT_EVENT_NONE 0
 #define DHT_EVENT_VALUES 1
@@ -41,10 +41,10 @@ int dht_init(int s, int s6, const unsigned char *id, const unsigned char *v);
 int dht_insert_node(const unsigned char *id, struct sockaddr *sa, int salen);
 int dht_ping_node(const struct sockaddr *sa, int salen);
 int dht_periodic(const void *buf, size_t buflen,
-                 const struct sockaddr *from, int fromlen,
-                 time_t *tosleep, dht_callback *callback, void *closure);
+                 const struct sockaddr *from, int fromlen, time_t *tosleep,
+                 dht_callback_t *callback, void *closure);
 int dht_search(const unsigned char *id, int port, int af,
-               dht_callback *callback, void *closure);
+               dht_callback_t *callback, void *closure);
 int dht_nodes(int af,
               int *good_return, int *dubious_return, int *cached_return,
               int *incoming_return);

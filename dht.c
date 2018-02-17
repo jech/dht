@@ -1106,7 +1106,7 @@ flush_search_node(struct search_node *n, struct search *sr)
 }
 
 static void
-expire_searches(dht_callback *callback, void *closure)
+expire_searches(dht_callback_t *callback, void *closure)
 {
     struct search *sr = searches, *previous = NULL;
 
@@ -1184,7 +1184,7 @@ add_search_node(const unsigned char *id, const struct sockaddr *sa, int salen)
 /* When a search is in progress, we periodically call search_step to send
    further requests. */
 static void
-search_step(struct search *sr, dht_callback *callback, void *closure)
+search_step(struct search *sr, dht_callback_t *callback, void *closure)
 {
     int i, j;
     int all_done = 1;
@@ -1315,7 +1315,7 @@ insert_search_bucket(struct bucket *b, struct search *sr)
    search is complete. */
 int
 dht_search(const unsigned char *id, int port, int af,
-           dht_callback *callback, void *closure)
+           dht_callback_t *callback, void *closure)
 {
     struct search *sr;
     struct storage *st;
@@ -2029,7 +2029,7 @@ int
 dht_periodic(const void *buf, size_t buflen,
              const struct sockaddr *from, int fromlen,
              time_t *tosleep,
-             dht_callback *callback, void *closure)
+             dht_callback_t *callback, void *closure)
 {
     dht_gettimeofday(&now, NULL);
 
