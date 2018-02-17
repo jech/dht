@@ -28,14 +28,12 @@ THE SOFTWARE.
    gratuitious changes to the coding style.  And please send back any
    improvements to the author. */
 
-/* For memmem. */
-#define _GNU_SOURCE
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include <stdarg.h>
+#include <ctype.h>
 
 #if !defined(_WIN32) || defined(__MINGW32__)
 #include <sys/time.h>
@@ -61,12 +59,6 @@ THE SOFTWARE.
 #endif
 
 #include "dht.h"
-
-#ifndef HAVE_MEMMEM
-#ifdef __GLIBC__
-#define HAVE_MEMMEM
-#endif
-#endif
 
 #ifndef MSG_CONFIRM
 #define MSG_CONFIRM 0
@@ -2046,12 +2038,6 @@ dht_periodic(const void *buf, size_t buflen,
             goto dontread;
         }
 
-        if(((char*)buf)[buflen] != '\0') {
-            debugf("Unterminated message.\n");
-            errno = EINVAL;
-            return -1;
-        }
-
         memset(&m, 0, sizeof(m));
         message = parse_message(buf, buflen, &m);
 
@@ -2456,7 +2442,7 @@ dht_ping_node(const struct sockaddr *sa, int salen)
     return send_ping(sa, salen, tid, 4);
 }
 
-/* We could use a proper bencoding printer and parser, but the format of
+/* We could use a proper bencoding printer, but the format of
    DHT messages is fairly stylised, so this seemed simpler. */
 
 #define CHECK(offset, delta, size)                      \
@@ -2857,210 +2843,249 @@ send_error(const struct sockaddr *sa, int salen,
 #undef COPY
 #undef ADD_V
 
-#ifdef HAVE_MEMMEM
-
-static void *
-dht_memmem(const void *haystack, size_t haystacklen,
-           const void *needle, size_t needlelen)
+static long
+bdecode_int(const unsigned char *str, size_t len, const unsigned char **endptr)
 {
-    return memmem(haystack, haystacklen, needle, needlelen);
+    long sign = 1;
+    long value = 0;
+    if(len > 0 && *str == '-') {
+        sign = -1;
+        str++;
+        len--;
+    }
+    while(len > 0 && isdigit(*str)) {
+        value = value * 10 + (*str - '0');
+        str++,
+        len--;
+    }
+    *endptr = len > 0 ? str : NULL;
+    return sign * value;
 }
 
-#else
-
-static void *
-dht_memmem(const void *haystack, size_t haystacklen,
-           const void *needle, size_t needlelen)
+static const unsigned char*
+bdecode_string(const unsigned char *s, size_t len, size_t *outlen)
 {
-    const char *h = haystack;
-    const char *n = needle;
-    size_t i;
-
-    /* size_t is unsigned */
-    if(needlelen > haystacklen)
+    const unsigned char *e = s + len;
+    long slen = bdecode_int(s, e - s, &s);
+    if(!s || *s != ':' || slen < 0 || s + 1 + slen >= e)
         return NULL;
+    *outlen = slen;
+    return s + 1;
+}
 
-    for(i = 0; i <= haystacklen - needlelen; i++) {
-        if(memcmp(h + i, n, needlelen) == 0)
-            return (void*)(h + i);
+#define B_ITER(s, e) while(s && s < e && *s != 'e')
+#define STR_EQ(s, sl, d, dl) (sl == dl && !strncmp((char*)s, (char*)d, sl))
+
+static const unsigned char*
+bdecode_iter(const unsigned char *s, const unsigned char *e, int depth)
+{
+    switch(*s) {
+    case 'i': {
+        s++;
+        bdecode_int(s, e - s, &s);
+        break;
+    }
+    case 'l':
+        s++;
+        B_ITER(s, e) {
+            s = bdecode_iter(s, e, depth + 1);
+        }
+        break;
+    case 'd':
+        s++;
+        B_ITER(s, e) {
+            size_t keylen;
+            s = bdecode_string(s, e - s, &keylen);
+            if (!s)
+                return NULL;
+            s = bdecode_iter(s + keylen, e, depth + 1);
+        }
+        break;
+    default: {
+        size_t slen;
+        s = bdecode_string(s, e - s, &slen);
+        return s ? s + slen : NULL;
+    }
+    }
+    return (!s || *s != 'e' || s + 1 >= e) ? NULL : s + 1;
+}
+
+static const unsigned char*
+bdecode_find_key(const unsigned char *s, size_t len, const char *skey)
+{
+    const unsigned char *e = s + len;
+    if(s >= e || *s != 'd') {
+        return NULL;
+    }
+    s++;
+    size_t skeylen = strlen(skey);
+    B_ITER(s, e) {
+        size_t keylen;
+        s = bdecode_string(s, e - s, &keylen);
+        if(s && STR_EQ(s, keylen, skey, skeylen)) {
+            s += keylen;
+            return s < e ? s : NULL;
+        }
+        s = bdecode_iter(s + keylen, e, 0);
     }
     return NULL;
 }
 
-#endif
+static int
+bdecode_string_for_key_matches(const unsigned char *s, size_t len, const char *key, const char *value)
+{
+    const unsigned char *p = bdecode_find_key(s, len, key);
+    if(!p)
+        return 0;
+    size_t outlen = 0;
+    p = bdecode_string(p, len - (p - s), &outlen);
+    return STR_EQ(p, outlen, value, strlen(value));
+}
+
+static const unsigned char*
+bdecode_string_for_key(const unsigned char *s, size_t len, const char *search, size_t *outlen)
+{
+    const unsigned char *p = bdecode_find_key(s, len, search);
+    return p ? bdecode_string(p, len - (p - s), outlen) : NULL;
+}
+
+static long
+bdecode_int_for_key(const unsigned char *s, size_t len, const char *search, int *success)
+{
+    const unsigned char *p = bdecode_find_key(s, len, search);
+    *success = 0;
+    if(!p || *p != 'i')
+        return 0;
+    long l = bdecode_int(p, len - (p - s), &p);
+    if(!p || *p != 'e')
+        return 0;
+    *success = 1;
+    return l;
+}
 
 static int
 parse_message(const unsigned char *buf, int buflen,
               struct parsed_message *m)
 {
+    const unsigned char *e = buf + buflen;
     const unsigned char *p;
+    size_t s;
 
-    /* This code will happily crash if the buffer is not NUL-terminated. */
-    if(buf[buflen] != '\0') {
-        debugf("Eek!  parse_message with unterminated buffer.\n");
-        return -1;
+    p = bdecode_string_for_key(buf, buflen, "t", &s);
+    if (p && s < PARSE_TID_LEN) {
+        memcpy(m->tid, p, s);
+        m->tid_len = s;
     }
 
+    p = bdecode_find_key(buf, buflen, "a");
+    if(!p) {
+        p = bdecode_find_key(buf, buflen, "r");
+    }
 
-#define CHECK(ptr, len)                                                 \
-    if(((unsigned char*)ptr) + (len) > (buf) + (buflen)) goto overflow;
-
-    p = dht_memmem(buf, buflen, "1:t", 3);
-    if(p) {
+    {
         long l;
-        char *q;
-        l = strtol((char*)p + 3, &q, 10);
-        if(q && *q == ':' && l > 0 && l < PARSE_TID_LEN) {
-            CHECK(q + 1, l);
-            memcpy(m->tid, q + 1, l);
-            m->tid_len = l;
-        }
-    }
+        int success;
+        const unsigned char *sbuf = p && *p == 'd' ? p : NULL;
+        size_t sbuflen = sbuf ? buflen - (p - buf) : 0;
 
-    p = dht_memmem(buf, buflen, "2:id20:", 7);
-    if(p) {
-        CHECK(p + 7, 20);
-        memcpy(m->id, p + 7, 20);
-    }
-
-    p = dht_memmem(buf, buflen, "9:info_hash20:", 14);
-    if(p) {
-        CHECK(p + 14, 20);
-        memcpy(m->info_hash, p + 14, 20);
-    }
-
-    p = dht_memmem(buf, buflen, "4:porti", 7);
-    if(p) {
-        long l;
-        char *q;
-        l = strtol((char*)p + 7, &q, 10);
-        if(q && *q == 'e' && l > 0 && l < 0x10000)
+        l = bdecode_int_for_key(sbuf, sbuflen, "port", &success);
+        if(success && l > 0 && l < 0x10000)
             m->port = l;
-    }
 
-    p = dht_memmem(buf, buflen, "12:implied_porti", 16);
-    if(p) {
-        long l;
-        char *q;
-        l = strtol((char*)p + 16, &q, 10);
-        if(q && *q == 'e' && l > 0 && l < 0x10000)
+        l = bdecode_int_for_key(sbuf, sbuflen, "implied_port", &success);
+        if(success && l > 0 && l < 0x10000)
             m->implied_port = l;
-    }
 
-    p = dht_memmem(buf, buflen, "6:target20:", 11);
-    if(p) {
-        CHECK(p + 11, 20);
-        memcpy(m->target, p + 11, 20);
-    }
+        p = bdecode_string_for_key(sbuf, sbuflen, "id", &s);
+        if (p && s == 20)
+            memcpy(m->id, p, 20);
 
-    p = dht_memmem(buf, buflen, "5:token", 7);
-    if(p) {
-        long l;
-        char *q;
-        l = strtol((char*)p + 7, &q, 10);
-        if(q && *q == ':' && l > 0 && l < PARSE_TOKEN_LEN) {
-            CHECK(q + 1, l);
-            memcpy(m->token, q + 1, l);
-            m->token_len = l;
+        p = bdecode_string_for_key(sbuf, sbuflen, "info_hash", &s);
+        if (p && s == 20)
+            memcpy(m->info_hash, p, 20);
+
+        p = bdecode_string_for_key(sbuf, sbuflen, "target", &s);
+        if (p && s == 20)
+            memcpy(m->target, p, 20);
+
+        p = bdecode_string_for_key(sbuf, sbuflen, "token", &s);
+        if(p && s < PARSE_TOKEN_LEN) {
+            memcpy(m->token, p, s);
+            m->token_len = s;
         }
-    }
 
-    p = dht_memmem(buf, buflen, "5:nodes", 7);
-    if(p) {
-        long l;
-        char *q;
-        l = strtol((char*)p + 7, &q, 10);
-        if(q && *q == ':' && l > 0 && l <= PARSE_NODES_LEN) {
-            CHECK(q + 1, l);
-            memcpy(m->nodes, q + 1, l);
-            m->nodes_len = l;
+        p = bdecode_string_for_key(sbuf, sbuflen, "nodes", &s);
+        if(p && s <= PARSE_NODES_LEN) {
+            memcpy(m->nodes, p, s);
+            m->nodes_len = s;
         }
-    }
 
-    p = dht_memmem(buf, buflen, "6:nodes6", 8);
-    if(p) {
-        long l;
-        char *q;
-        l = strtol((char*)p + 8, &q, 10);
-        if(q && *q == ':' && l > 0 && l <= PARSE_NODES6_LEN) {
-            CHECK(q + 1, l);
-            memcpy(m->nodes6, q + 1, l);
-            m->nodes6_len = l;
+        p = bdecode_string_for_key(sbuf, sbuflen, "nodes6", &s);
+        if(p && s <= PARSE_NODES6_LEN) {
+            memcpy(m->nodes6, p, s);
+            m->nodes6_len = s;
         }
-    }
 
-    p = dht_memmem(buf, buflen, "6:valuesl", 9);
-    if(p) {
-        int i = p - buf + 9;
-        int j = 0, j6 = 0;
-        while(1) {
-            long l;
-            char *q;
-            l = strtol((char*)buf + i, &q, 10);
-            if(q && *q == ':' && l > 0) {
-                CHECK(q + 1, l);
-                i = q + 1 + l - (char*)buf;
-                if(l == 6) {
-                    if(j + l > PARSE_VALUES_LEN)
+        p = bdecode_find_key(sbuf, sbuflen, "values");
+        if (p && *p == 'l') {
+            int j = 0, j6 = 0;
+            p++;
+            B_ITER(p, e) {
+                p = bdecode_string(p, e - p, &s);
+                if(!p)
+                    break;
+                if(s == 6) {
+                    if(j + s > PARSE_VALUES_LEN)
                         continue;
-                    memcpy((char*)m->values + j, q + 1, l);
-                    j += l;
-                } else if(l == 18) {
-                    if(j6 + l > PARSE_VALUES6_LEN)
+                    memcpy(m->values + j, p, s);
+                    j += s;
+                } else if(s == 18) {
+                    if(j6 + s > PARSE_VALUES6_LEN)
                         continue;
-                    memcpy((char*)m->values6 + j6, q + 1, l);
-                    j6 += l;
+                    memcpy(m->values6 + j6, p, s);
+                    j6 += s;
                 } else {
-                    debugf("Received weird value -- %d bytes.\n", (int)l);
+                    debugf("Received weird value -- %d bytes.\n", (int)s);
                 }
-            } else {
-                break;
+                p += s;
             }
+            m->values_len = j;
+            m->values6_len = j6;
         }
-        if(i >= buflen || buf[i] != 'e')
-            debugf("eek... unexpected end for values.\n");
-        m->values_len = j;
-        m->values6_len = j6;
+        p = bdecode_find_key(sbuf, sbuflen, "want");
+        if (p && *p == 'l') {
+            p++;
+            m->want = 0;
+            B_ITER(p, e) {
+                p = bdecode_string(p, e - p, &s);
+                printf("want p:%s\n", p);
+                if(!p)
+                    break;
+                if(STR_EQ(p, s, "n4", strlen("n4")))
+                    m->want |= WANT4;
+                else if(STR_EQ(p, s, "n6", strlen("n6")))
+                    m->want |= WANT6;
+                else
+                    debugf("eek... unexpected want flag (%.*s)\n", (int)s, p);
+                p += s;
+            }
+        } else
+            m->want = -1;
     }
 
-    p = dht_memmem(buf, buflen, "4:wantl", 7);
-    if(p) {
-        int i = p - buf + 7;
-        m->want = 0;
-        while(buf[i] > '0' && buf[i] <= '9' && buf[i + 1] == ':' &&
-              i + 2 + buf[i] - '0' < buflen) {
-            CHECK(buf + i + 2, buf[i] - '0');
-            if(buf[i] == '2' && memcmp(buf + i + 2, "n4", 2) == 0)
-                m->want |= WANT4;
-            else if(buf[i] == '2' && memcmp(buf + i + 2, "n6", 2) == 0)
-                m->want |= WANT6;
-            else
-                debugf("eek... unexpected want flag (%c)\n", buf[i]);
-            i += 2 + buf[i] - '0';
-        }
-        if(i >= buflen || buf[i] != 'e')
-            debugf("eek... unexpected end for want.\n");
-    }
-
-#undef CHECK
-
-    if(dht_memmem(buf, buflen, "1:y1:r", 6))
+    if(bdecode_string_for_key_matches(buf, buflen, "y", "r"))
         return REPLY;
-    if(dht_memmem(buf, buflen, "1:y1:e", 6))
+    if(bdecode_string_for_key_matches(buf, buflen, "y", "e"))
         return ERROR;
-    if(!dht_memmem(buf, buflen, "1:y1:q", 6))
+    if(!bdecode_string_for_key_matches(buf, buflen, "y", "q"))
         return -1;
-    if(dht_memmem(buf, buflen, "1:q4:ping", 9))
+    if(bdecode_string_for_key_matches(buf, buflen, "q", "ping"))
         return PING;
-    if(dht_memmem(buf, buflen, "1:q9:find_node", 14))
-       return FIND_NODE;
-    if(dht_memmem(buf, buflen, "1:q9:get_peers", 14))
+    if(bdecode_string_for_key_matches(buf, buflen, "q", "find_node"))
+        return FIND_NODE;
+    if(bdecode_string_for_key_matches(buf, buflen, "q", "get_peers"))
         return GET_PEERS;
-    if(dht_memmem(buf, buflen, "1:q13:announce_peer", 19))
-       return ANNOUNCE_PEER;
-    return -1;
-
- overflow:
-    debugf("Truncated message.\n");
+    if(bdecode_string_for_key_matches(buf, buflen, "q", "announce_peer"))
+        return ANNOUNCE_PEER;
     return -1;
 }
