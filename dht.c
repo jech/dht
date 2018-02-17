@@ -267,19 +267,36 @@ add_search_node(const unsigned char *id, const struct sockaddr *sa, int salen);
 #define WANT4 1
 #define WANT6 2
 
+#define PARSE_TID_LEN 16
+#define PARSE_TOKEN_LEN 128
+#define PARSE_NODES_LEN (26 * 16)
+#define PARSE_NODES6_LEN (38 * 16)
+#define PARSE_VALUES_LEN 2048
+#define PARSE_VALUES6_LEN 2048
+
+struct parsed_message {
+    unsigned char tid[PARSE_TID_LEN];
+    unsigned short tid_len;
+    unsigned char id[20];
+    unsigned char info_hash[20];
+    unsigned char target[20];
+    unsigned short port;
+    unsigned short implied_port;
+    unsigned char token[PARSE_TOKEN_LEN];
+    unsigned short token_len;
+    unsigned char nodes[PARSE_NODES_LEN];
+    unsigned short nodes_len;
+    unsigned char nodes6[PARSE_NODES6_LEN];
+    unsigned short nodes6_len;
+    unsigned char values[PARSE_VALUES_LEN];
+    unsigned short values_len;
+    unsigned char values6[PARSE_VALUES6_LEN];
+    unsigned short values6_len;
+    unsigned short want;
+};
+
 static int parse_message(const unsigned char *buf, int buflen,
-                         unsigned char *tid_return, int *tid_len,
-                         unsigned char *id_return,
-                         unsigned char *info_hash_return,
-                         unsigned char *target_return,
-                         unsigned short *port_return,
-                         int *implied_port_return,
-                         unsigned char *token_return, int *token_len,
-                         unsigned char *nodes_return, int *nodes_len,
-                         unsigned char *nodes6_return, int *nodes6_len,
-                         unsigned char *values_return, int *values_len,
-                         unsigned char *values6_return, int *values6_len,
-                         int *want_return);
+                         struct parsed_message *m);
 
 static const unsigned char zeroes[20] = {0};
 static const unsigned char v4prefix[16] = {
@@ -2018,15 +2035,7 @@ dht_periodic(const void *buf, size_t buflen,
 
     if(buflen > 0) {
         int message;
-        unsigned char tid[16], id[20], info_hash[20], target[20];
-        unsigned char nodes[26*16], nodes6[38*16], token[128];
-        int tid_len = 16, token_len = 128;
-        int nodes_len = 26*16, nodes6_len = 38*16;
-        unsigned short port;
-        int implied_port;
-        unsigned char values[2048], values6[2048];
-        int values_len = 2048, values6_len = 2048;
-        int want;
+        struct parsed_message m;
         unsigned short ttid;
 
         if(is_martian(from))
@@ -2043,20 +2052,17 @@ dht_periodic(const void *buf, size_t buflen,
             return -1;
         }
 
-        message = parse_message(buf, buflen, tid, &tid_len, id, info_hash,
-                                target, &port, &implied_port, token, &token_len,
-                                nodes, &nodes_len, nodes6, &nodes6_len,
-                                values, &values_len, values6, &values6_len,
-                                &want);
+        memset(&m, 0, sizeof(m));
+        message = parse_message(buf, buflen, &m);
 
-        if(message < 0 || message == ERROR || id_cmp(id, zeroes) == 0) {
+        if(message < 0 || message == ERROR || id_cmp(m.id, zeroes) == 0) {
             debugf("Unparseable message: ");
             debug_printable(buf, buflen);
             debugf("\n");
             goto dontread;
         }
 
-        if(id_cmp(id, myid) == 0) {
+        if(id_cmp(m.id, myid) == 0) {
             debugf("Received message from self.\n");
             goto dontread;
         }
@@ -2071,40 +2077,41 @@ dht_periodic(const void *buf, size_t buflen,
 
         switch(message) {
         case REPLY:
-            if(tid_len != 4) {
+            if(m.tid_len != 4) {
                 debugf("Broken node truncates transaction ids: ");
                 debug_printable(buf, buflen);
                 debugf("\n");
                 /* This is really annoying, as it means that we will
                    time-out all our searches that go through this node.
                    Kill it. */
-                blacklist_node(id, from, fromlen);
+                blacklist_node(m.id, from, fromlen);
                 goto dontread;
             }
-            if(tid_match(tid, "pn", NULL)) {
+            if(tid_match(m.tid, "pn", NULL)) {
                 debugf("Pong!\n");
-                new_node(id, from, fromlen, 2);
-            } else if(tid_match(tid, "fn", NULL) ||
-                      tid_match(tid, "gp", NULL)) {
+                new_node(m.id, from, fromlen, 2);
+            } else if(tid_match(m.tid, "fn", NULL) ||
+                      tid_match(m.tid, "gp", NULL)) {
                 int gp = 0;
                 struct search *sr = NULL;
-                if(tid_match(tid, "gp", &ttid)) {
+                if(tid_match(m.tid, "gp", &ttid)) {
                     gp = 1;
                     sr = find_search(ttid, from->sa_family);
                 }
-                debugf("Nodes found (%d+%d)%s!\n", nodes_len/26, nodes6_len/38,
+                debugf("Nodes found (%d+%d)%s!\n",
+                       m.nodes_len/26, m.nodes6_len/38,
                        gp ? " for get_peers" : "");
-                if(nodes_len % 26 != 0 || nodes6_len % 38 != 0) {
+                if(m.nodes_len % 26 != 0 || m.nodes6_len % 38 != 0) {
                     debugf("Unexpected length for node info!\n");
-                    blacklist_node(id, from, fromlen);
+                    blacklist_node(m.id, from, fromlen);
                 } else if(gp && sr == NULL) {
                     debugf("Unknown search!\n");
-                    new_node(id, from, fromlen, 1);
+                    new_node(m.id, from, fromlen, 1);
                 } else {
                     int i;
-                    new_node(id, from, fromlen, 2);
-                    for(i = 0; i < nodes_len / 26; i++) {
-                        unsigned char *ni = nodes + i * 26;
+                    new_node(m.id, from, fromlen, 2);
+                    for(i = 0; i < m.nodes_len / 26; i++) {
+                        unsigned char *ni = m.nodes + i * 26;
                         struct sockaddr_in sin;
                         if(id_cmp(ni, myid) == 0)
                             continue;
@@ -2120,8 +2127,8 @@ dht_periodic(const void *buf, size_t buflen,
                                                sr, 0, NULL, 0);
                         }
                     }
-                    for(i = 0; i < nodes6_len / 38; i++) {
-                        unsigned char *ni = nodes6 + i * 38;
+                    for(i = 0; i < m.nodes6_len / 38; i++) {
+                        unsigned char *ni = m.nodes6 + i * 38;
                         struct sockaddr_in6 sin6;
                         if(id_cmp(ni, myid) == 0)
                             continue;
@@ -2144,34 +2151,34 @@ dht_periodic(const void *buf, size_t buflen,
                         search_send_get_peers(sr, NULL);
                 }
                 if(sr) {
-                    insert_search_node(id, from, fromlen, sr,
-                                       1, token, token_len);
-                    if(values_len > 0 || values6_len > 0) {
+                    insert_search_node(m.id, from, fromlen, sr,
+                                       1, m.token, m.token_len);
+                    if(m.values_len > 0 || m.values6_len > 0) {
                         debugf("Got values (%d+%d)!\n",
-                               values_len / 6, values6_len / 18);
+                               m.values_len / 6, m.values6_len / 18);
                         if(callback) {
-                            if(values_len > 0)
+                            if(m.values_len > 0)
                                 (*callback)(closure, DHT_EVENT_VALUES, sr->id,
-                                            (void*)values, values_len);
+                                            (void*)m.values, m.values_len);
 
-                            if(values6_len > 0)
+                            if(m.values6_len > 0)
                                 (*callback)(closure, DHT_EVENT_VALUES6, sr->id,
-                                            (void*)values6, values6_len);
+                                            (void*)m.values6, m.values6_len);
                         }
                     }
                 }
-            } else if(tid_match(tid, "ap", &ttid)) {
+            } else if(tid_match(m.tid, "ap", &ttid)) {
                 struct search *sr;
                 debugf("Got reply to announce_peer.\n");
                 sr = find_search(ttid, from->sa_family);
                 if(!sr) {
                     debugf("Unknown search!\n");
-                    new_node(id, from, fromlen, 1);
+                    new_node(m.id, from, fromlen, 1);
                 } else {
                     int i;
-                    new_node(id, from, fromlen, 2);
+                    new_node(m.id, from, fromlen, 2);
                     for(i = 0; i < sr->numnodes; i++)
-                        if(id_cmp(sr->nodes[i].id, id) == 0) {
+                        if(id_cmp(sr->nodes[i].id, m.id) == 0) {
                             sr->nodes[i].request_time = 0;
                             sr->nodes[i].reply_time = now.tv_sec;
                             sr->nodes[i].acked = 1;
@@ -2188,85 +2195,85 @@ dht_periodic(const void *buf, size_t buflen,
             }
             break;
         case PING:
-            debugf("Ping (%d)!\n", tid_len);
-            new_node(id, from, fromlen, 1);
+            debugf("Ping (%d)!\n", m.tid_len);
+            new_node(m.id, from, fromlen, 1);
             debugf("Sending pong.\n");
-            send_pong(from, fromlen, tid, tid_len);
+            send_pong(from, fromlen, m.tid, m.tid_len);
             break;
         case FIND_NODE:
             debugf("Find node!\n");
-            new_node(id, from, fromlen, 1);
-            debugf("Sending closest nodes (%d).\n", want);
+            new_node(m.id, from, fromlen, 1);
+            debugf("Sending closest nodes (%d).\n", m.want);
             send_closest_nodes(from, fromlen,
-                               tid, tid_len, target, want,
+                               m.tid, m.tid_len, m.target, m.want,
                                0, NULL, NULL, 0);
             break;
         case GET_PEERS:
             debugf("Get_peers!\n");
-            new_node(id, from, fromlen, 1);
-            if(id_cmp(info_hash, zeroes) == 0) {
+            new_node(m.id, from, fromlen, 1);
+            if(id_cmp(m.info_hash, zeroes) == 0) {
                 debugf("Eek!  Got get_peers with no info_hash.\n");
-                send_error(from, fromlen, tid, tid_len,
+                send_error(from, fromlen, m.tid, m.tid_len,
                            203, "Get_peers with no info_hash");
                 break;
             } else {
-                struct storage *st = find_storage(info_hash);
+                struct storage *st = find_storage(m.info_hash);
                 unsigned char token[TOKEN_SIZE];
                 make_token(from, 0, token);
                 if(st && st->numpeers > 0) {
                      debugf("Sending found%s peers.\n",
                             from->sa_family == AF_INET6 ? " IPv6" : "");
                      send_closest_nodes(from, fromlen,
-                                        tid, tid_len,
-                                        info_hash, want,
+                                        m.tid, m.tid_len,
+                                        m.info_hash, m.want,
                                         from->sa_family, st,
                                         token, TOKEN_SIZE);
                 } else {
                     debugf("Sending nodes for get_peers.\n");
                     send_closest_nodes(from, fromlen,
-                                       tid, tid_len, info_hash, want,
+                                       m.tid, m.tid_len, m.info_hash, m.want,
                                        0, NULL, token, TOKEN_SIZE);
                 }
             }
             break;
         case ANNOUNCE_PEER:
             debugf("Announce peer!\n");
-            new_node(id, from, fromlen, 1);
-            if(id_cmp(info_hash, zeroes) == 0) {
+            new_node(m.id, from, fromlen, 1);
+            if(id_cmp(m.info_hash, zeroes) == 0) {
                 debugf("Announce_peer with no info_hash.\n");
-                send_error(from, fromlen, tid, tid_len,
+                send_error(from, fromlen, m.tid, m.tid_len,
                            203, "Announce_peer with no info_hash");
                 break;
             }
-            if(!token_match(token, token_len, from)) {
+            if(!token_match(m.token, m.token_len, from)) {
                 debugf("Incorrect token for announce_peer.\n");
-                send_error(from, fromlen, tid, tid_len,
+                send_error(from, fromlen, m.tid, m.tid_len,
                            203, "Announce_peer with wrong token");
                 break;
             }
-            if(implied_port != 0) {
+            if(m.implied_port != 0) {
                 /* Do this even if port > 0.  That's what the spec says. */
                 switch(from->sa_family) {
                 case AF_INET:
-                    port = htons(((struct sockaddr_in*)from)->sin_port);
+                    m.port = htons(((struct sockaddr_in*)from)->sin_port);
                     break;
                 case AF_INET6:
-                    port = htons(((struct sockaddr_in6*)from)->sin6_port);
+                    m.port = htons(((struct sockaddr_in6*)from)->sin6_port);
                     break;
                 }
             }
-            if(port == 0) {
-                debugf("Announce_peer with forbidden port %d.\n", port);
-                send_error(from, fromlen, tid, tid_len,
+            if(m.port == 0) {
+                debugf("Announce_peer with forbidden port %d.\n", m.port);
+                send_error(from, fromlen, m.tid, m.tid_len,
                            203, "Announce_peer with forbidden port number");
                 break;
             }
-            storage_store(info_hash, from, port);
+            storage_store(m.info_hash, from, m.port);
             /* Note that if storage_store failed, we lie to the requestor.
                This is to prevent them from backtracking, and hence
                polluting the DHT. */
             debugf("Sending peer announced.\n");
-            send_peer_announced(from, fromlen, tid, tid_len);
+            send_peer_announced(from, fromlen, m.tid, m.tid_len);
         }
     }
 
@@ -2884,16 +2891,7 @@ dht_memmem(const void *haystack, size_t haystacklen,
 
 static int
 parse_message(const unsigned char *buf, int buflen,
-              unsigned char *tid_return, int *tid_len,
-              unsigned char *id_return, unsigned char *info_hash_return,
-              unsigned char *target_return, unsigned short *port_return,
-              int *implied_port_return,
-              unsigned char *token_return, int *token_len,
-              unsigned char *nodes_return, int *nodes_len,
-              unsigned char *nodes6_return, int *nodes6_len,
-              unsigned char *values_return, int *values_len,
-              unsigned char *values6_return, int *values6_len,
-              int *want_return)
+              struct parsed_message *m)
 {
     const unsigned char *p;
 
@@ -2903,188 +2901,145 @@ parse_message(const unsigned char *buf, int buflen,
         return -1;
     }
 
+
 #define CHECK(ptr, len)                                                 \
     if(((unsigned char*)ptr) + (len) > (buf) + (buflen)) goto overflow;
 
-    if(tid_return) {
-        p = dht_memmem(buf, buflen, "1:t", 3);
-        if(p) {
-            long l;
-            char *q;
-            l = strtol((char*)p + 3, &q, 10);
-            if(q && *q == ':' && l > 0 && l < *tid_len) {
-                CHECK(q + 1, l);
-                memcpy(tid_return, q + 1, l);
-                *tid_len = l;
-            } else
-                *tid_len = 0;
+    p = dht_memmem(buf, buflen, "1:t", 3);
+    if(p) {
+        long l;
+        char *q;
+        l = strtol((char*)p + 3, &q, 10);
+        if(q && *q == ':' && l > 0 && l < PARSE_TID_LEN) {
+            CHECK(q + 1, l);
+            memcpy(m->tid, q + 1, l);
+            m->tid_len = l;
         }
-    }
-    if(id_return) {
-        p = dht_memmem(buf, buflen, "2:id20:", 7);
-        if(p) {
-            CHECK(p + 7, 20);
-            memcpy(id_return, p + 7, 20);
-        } else {
-            memset(id_return, 0, 20);
-        }
-    }
-    if(info_hash_return) {
-        p = dht_memmem(buf, buflen, "9:info_hash20:", 14);
-        if(p) {
-            CHECK(p + 14, 20);
-            memcpy(info_hash_return, p + 14, 20);
-        } else {
-            memset(info_hash_return, 0, 20);
-        }
-    }
-    if(port_return) {
-        p = dht_memmem(buf, buflen, "4:porti", 7);
-        if(p) {
-            long l;
-            char *q;
-            l = strtol((char*)p + 7, &q, 10);
-            if(q && *q == 'e' && l > 0 && l < 0x10000)
-                *port_return = l;
-            else
-                *port_return = 0;
-        } else
-            *port_return = 0;
-    }
-    if(implied_port_return) {
-        p = dht_memmem(buf, buflen, "12:implied_porti", 16);
-        if(p) {
-            long l;
-            char *q;
-            l = strtol((char*)p + 16, &q, 10);
-            if(q && *q == 'e' && l > 0 && l < 0x10000)
-                *implied_port_return = l;
-            else
-                *implied_port_return = 0;
-        } else
-            *implied_port_return = 0;
-    }
-    if(target_return) {
-        p = dht_memmem(buf, buflen, "6:target20:", 11);
-        if(p) {
-            CHECK(p + 11, 20);
-            memcpy(target_return, p + 11, 20);
-        } else {
-            memset(target_return, 0, 20);
-        }
-    }
-    if(token_return) {
-        p = dht_memmem(buf, buflen, "5:token", 7);
-        if(p) {
-            long l;
-            char *q;
-            l = strtol((char*)p + 7, &q, 10);
-            if(q && *q == ':' && l > 0 && l < *token_len) {
-                CHECK(q + 1, l);
-                memcpy(token_return, q + 1, l);
-                *token_len = l;
-            } else
-                *token_len = 0;
-        } else
-            *token_len = 0;
     }
 
-    if(nodes_len) {
-        p = dht_memmem(buf, buflen, "5:nodes", 7);
-        if(p) {
-            long l;
-            char *q;
-            l = strtol((char*)p + 7, &q, 10);
-            if(q && *q == ':' && l > 0 && l <= *nodes_len) {
-                CHECK(q + 1, l);
-                memcpy(nodes_return, q + 1, l);
-                *nodes_len = l;
-            } else
-                *nodes_len = 0;
-        } else
-            *nodes_len = 0;
+    p = dht_memmem(buf, buflen, "2:id20:", 7);
+    if(p) {
+        CHECK(p + 7, 20);
+        memcpy(m->id, p + 7, 20);
     }
 
-    if(nodes6_len) {
-        p = dht_memmem(buf, buflen, "6:nodes6", 8);
-        if(p) {
-            long l;
-            char *q;
-            l = strtol((char*)p + 8, &q, 10);
-            if(q && *q == ':' && l > 0 && l <= *nodes6_len) {
-                CHECK(q + 1, l);
-                memcpy(nodes6_return, q + 1, l);
-                *nodes6_len = l;
-            } else
-                *nodes6_len = 0;
-        } else
-            *nodes6_len = 0;
+    p = dht_memmem(buf, buflen, "9:info_hash20:", 14);
+    if(p) {
+        CHECK(p + 14, 20);
+        memcpy(m->info_hash, p + 14, 20);
     }
 
-    if(values_len || values6_len) {
-        p = dht_memmem(buf, buflen, "6:valuesl", 9);
-        if(p) {
-            int i = p - buf + 9;
-            int j = 0, j6 = 0;
-            while(1) {
-                long l;
-                char *q;
-                l = strtol((char*)buf + i, &q, 10);
-                if(q && *q == ':' && l > 0) {
-                    CHECK(q + 1, l);
-                    i = q + 1 + l - (char*)buf;
-                    if(l == 6) {
-                        if(j + l > *values_len)
-                            continue;
-                        memcpy((char*)values_return + j, q + 1, l);
-                        j += l;
-                    } else if(l == 18) {
-                        if(j6 + l > *values6_len)
-                            continue;
-                        memcpy((char*)values6_return + j6, q + 1, l);
-                        j6 += l;
-                    } else {
-                        debugf("Received weird value -- %d bytes.\n", (int)l);
-                    }
+    p = dht_memmem(buf, buflen, "4:porti", 7);
+    if(p) {
+        long l;
+        char *q;
+        l = strtol((char*)p + 7, &q, 10);
+        if(q && *q == 'e' && l > 0 && l < 0x10000)
+            m->port = l;
+    }
+
+    p = dht_memmem(buf, buflen, "12:implied_porti", 16);
+    if(p) {
+        long l;
+        char *q;
+        l = strtol((char*)p + 16, &q, 10);
+        if(q && *q == 'e' && l > 0 && l < 0x10000)
+            m->implied_port = l;
+    }
+
+    p = dht_memmem(buf, buflen, "6:target20:", 11);
+    if(p) {
+        CHECK(p + 11, 20);
+        memcpy(m->target, p + 11, 20);
+    }
+
+    p = dht_memmem(buf, buflen, "5:token", 7);
+    if(p) {
+        long l;
+        char *q;
+        l = strtol((char*)p + 7, &q, 10);
+        if(q && *q == ':' && l > 0 && l < PARSE_TOKEN_LEN) {
+            CHECK(q + 1, l);
+            memcpy(m->token, q + 1, l);
+            m->token_len = l;
+        }
+    }
+
+    p = dht_memmem(buf, buflen, "5:nodes", 7);
+    if(p) {
+        long l;
+        char *q;
+        l = strtol((char*)p + 7, &q, 10);
+        if(q && *q == ':' && l > 0 && l <= PARSE_NODES_LEN) {
+            CHECK(q + 1, l);
+            memcpy(m->nodes, q + 1, l);
+            m->nodes_len = l;
+        }
+    }
+
+    p = dht_memmem(buf, buflen, "6:nodes6", 8);
+    if(p) {
+        long l;
+        char *q;
+        l = strtol((char*)p + 8, &q, 10);
+        if(q && *q == ':' && l > 0 && l <= PARSE_NODES6_LEN) {
+            CHECK(q + 1, l);
+            memcpy(m->nodes6, q + 1, l);
+            m->nodes6_len = l;
+        }
+    }
+
+    p = dht_memmem(buf, buflen, "6:valuesl", 9);
+    if(p) {
+        int i = p - buf + 9;
+        int j = 0, j6 = 0;
+        while(1) {
+            long l;
+            char *q;
+            l = strtol((char*)buf + i, &q, 10);
+            if(q && *q == ':' && l > 0) {
+                CHECK(q + 1, l);
+                i = q + 1 + l - (char*)buf;
+                if(l == 6) {
+                    if(j + l > PARSE_VALUES_LEN)
+                        continue;
+                    memcpy((char*)m->values + j, q + 1, l);
+                    j += l;
+                } else if(l == 18) {
+                    if(j6 + l > PARSE_VALUES6_LEN)
+                        continue;
+                    memcpy((char*)m->values6 + j6, q + 1, l);
+                    j6 += l;
                 } else {
-                    break;
+                    debugf("Received weird value -- %d bytes.\n", (int)l);
                 }
+            } else {
+                break;
             }
-            if(i >= buflen || buf[i] != 'e')
-                debugf("eek... unexpected end for values.\n");
-            if(values_len)
-                *values_len = j;
-            if(values6_len)
-                *values6_len = j6;
-        } else {
-            if(values_len)
-                *values_len = 0;
-            if(values6_len)
-                *values6_len = 0;
         }
+        if(i >= buflen || buf[i] != 'e')
+            debugf("eek... unexpected end for values.\n");
+        m->values_len = j;
+        m->values6_len = j6;
     }
 
-    if(want_return) {
-        p = dht_memmem(buf, buflen, "4:wantl", 7);
-        if(p) {
-            int i = p - buf + 7;
-            *want_return = 0;
-            while(buf[i] > '0' && buf[i] <= '9' && buf[i + 1] == ':' &&
-                  i + 2 + buf[i] - '0' < buflen) {
-                CHECK(buf + i + 2, buf[i] - '0');
-                if(buf[i] == '2' && memcmp(buf + i + 2, "n4", 2) == 0)
-                    *want_return |= WANT4;
-                else if(buf[i] == '2' && memcmp(buf + i + 2, "n6", 2) == 0)
-                    *want_return |= WANT6;
-                else
-                    debugf("eek... unexpected want flag (%c)\n", buf[i]);
-                i += 2 + buf[i] - '0';
-            }
-            if(i >= buflen || buf[i] != 'e')
-                debugf("eek... unexpected end for want.\n");
-        } else {
-            *want_return = -1;
+    p = dht_memmem(buf, buflen, "4:wantl", 7);
+    if(p) {
+        int i = p - buf + 7;
+        m->want = 0;
+        while(buf[i] > '0' && buf[i] <= '9' && buf[i + 1] == ':' &&
+              i + 2 + buf[i] - '0' < buflen) {
+            CHECK(buf + i + 2, buf[i] - '0');
+            if(buf[i] == '2' && memcmp(buf + i + 2, "n4", 2) == 0)
+                m->want |= WANT4;
+            else if(buf[i] == '2' && memcmp(buf + i + 2, "n6", 2) == 0)
+                m->want |= WANT6;
+            else
+                debugf("eek... unexpected want flag (%c)\n", buf[i]);
+            i += 2 + buf[i] - '0';
         }
+        if(i >= buflen || buf[i] != 'e')
+            debugf("eek... unexpected end for want.\n");
     }
 
 #undef CHECK
