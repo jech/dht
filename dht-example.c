@@ -17,6 +17,7 @@
 #include <netdb.h>
 #include <signal.h>
 #include <sys/signal.h>
+#include <termios.h>
 
 #include "dht.h"
 
@@ -83,16 +84,18 @@ callback(void *closure,
          const unsigned char *info_hash,
          const void *data, size_t data_len)
 {
+    printf("\e[1m");
     if(event == DHT_EVENT_SEARCH_DONE)
-        printf("Search done.\n");
+        printf("Search done.");
     else if(event == DHT_EVENT_SEARCH_DONE6)
-        printf("IPv6 search done.\n");
+        printf("IPv6 search done.");
     else if(event == DHT_EVENT_VALUES)
-        printf("Received %d values.\n", (int)(data_len / 6));
+        printf("Received %d values.", (int)(data_len / 6));
     else if(event == DHT_EVENT_VALUES6)
-        printf("Received %d IPv6 values.\n", (int)(data_len / 18));
+        printf("Received %d IPv6 values.", (int)(data_len / 18));
     else
-        printf("Unknown DHT event %d.\n", event);
+        printf("Unknown DHT event %d.", event);
+    printf("\e[0m\n");
 }
 
 static unsigned char buf[4096];
@@ -113,6 +116,49 @@ set_nonblocking(int fd, int nonblocking)
     return 0;
 }
 
+void print_sockaddr(const struct sockaddr *sa) {
+    if (sa->sa_family == AF_INET) {
+        struct sockaddr_in *sinp = (struct sockaddr_in*)sa;
+        char addrstr[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &sinp->sin_addr, addrstr, sizeof(addrstr));
+        printf("%s:%d", addrstr, ntohs(sinp->sin_port));
+    } else if (sa->sa_family == AF_INET6) {
+        struct sockaddr_in6* sinp6 = (struct sockaddr_in6*)sa;
+        char addrstr[INET6_ADDRSTRLEN];
+        inet_ntop(AF_INET6, &sinp6->sin6_addr, addrstr, sizeof(addrstr));
+        printf("%s:%d", addrstr, ntohs(sinp6->sin6_port));
+    } else {
+        printf("<invalid>");
+    }
+}
+
+void print_hex(const unsigned char *str, size_t strlen) {
+    for (int i = 0; i < strlen; i++) {
+        printf("%02x", str[i]);
+    }
+}
+
+void print_help() {
+    printf("\e[1m");
+    printf("Hit 'q', 'e' or CTRL+C to quit\n");
+    printf("Hit 's' to display statistics\n");
+    printf("Hit 'd' to display routing table\n");
+    printf("Hit 't' to test search for hash '"); print_hex(hash, sizeof(hash)); printf("'\n");
+    printf("Hit 'h' to display this help message\n");
+    printf("\e[0m");
+}
+
+void print_stats() {
+    int good, dubious, cached, incoming;
+    int good6, dubious6, cached6, incoming6;
+    dht_nodes(AF_INET, &good, &dubious, &cached, &incoming);
+    dht_nodes(AF_INET6, &good6, &dubious6, &cached6, &incoming6);
+    printf("\e[1m");
+    printf("Stats IPv4: good: %3d, dubious: %3d, cached: %3d, incoming: %3d\n", good, dubious, cached, incoming);
+    printf("Stats IPv6: good: %3d, dubious: %3d, cached: %3d, incoming: %3d\n", good6, dubious6, cached6, incoming6);
+    printf("Stats both: good: %3d, dubious: %3d, cached: %3d, incoming: %3d\n", good + good6, dubious + dubious6, cached + cached6, incoming + incoming6);
+    printf("\e[0m");
+}
 
 int
 main(int argc, char **argv)
@@ -129,6 +175,7 @@ main(int argc, char **argv)
     struct sockaddr_in6 sin6;
     struct sockaddr_storage from;
     socklen_t fromlen;
+    struct termios term_old, term_new;
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
@@ -248,6 +295,7 @@ main(int argc, char **argv)
 
         infop = info;
         while(infop) {
+            printf("Adding bootstrap node '"); print_sockaddr(infop->ai_addr); printf("'\n");
             memcpy(&bootstrap_nodes[num_bootstrap_nodes],
                    infop->ai_addr, infop->ai_addrlen);
             infop = infop->ai_next;
@@ -298,6 +346,7 @@ main(int argc, char **argv)
 
     if(s >= 0) {
         sin.sin_port = htons(port);
+        printf("Binding to IPv4 address '"); print_sockaddr((struct sockaddr*)&sin); printf("'\n");
         rc = bind(s, (struct sockaddr*)&sin, sizeof(sin));
         if(rc < 0) {
             perror("bind(IPv4)");
@@ -321,11 +370,25 @@ main(int argc, char **argv)
            happens if the user used the -b flag. */
 
         sin6.sin6_port = htons(port);
+        printf("Binding to IPv6 address '"); print_sockaddr((struct sockaddr*)&sin6); printf("'\n");
         rc = bind(s6, (struct sockaddr*)&sin6, sizeof(sin6));
         if(rc < 0) {
             perror("bind(IPv6)");
             exit(1);
         }
+    }
+
+    /* Configure terminal: disable local echo and line buffering */
+    if(tcgetattr(STDIN_FILENO, &term_old)) {
+        perror("tcgetattr");
+        exit(1);
+    }
+    term_new = term_old;
+    term_new.c_lflag &= ~ECHO;
+    term_new.c_lflag &= ~ICANON;
+    if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &term_new)) {
+        perror("tcsetattr");
+        exit(1);
     }
 
     /* Init the dht. */
@@ -335,7 +398,11 @@ main(int argc, char **argv)
         exit(1);
     }
 
+    /* Setup signal handlers */
     init_signals();
+
+    /* Print help */
+    print_help();
 
     /* For bootstrapping, we need an initial list of nodes.  This could be
        hard-wired, but can also be obtained from the nodes key of a torrent
@@ -365,20 +432,18 @@ main(int argc, char **argv)
         tv.tv_usec = random() % 1000000;
 
         FD_ZERO(&readfds);
+        FD_SET(STDIN_FILENO, &readfds);
         if(s >= 0)
             FD_SET(s, &readfds);
         if(s6 >= 0)
             FD_SET(s6, &readfds);
-        rc = select(s > s6 ? s + 1 : s6 + 1, &readfds, NULL, NULL, &tv);
+        rc = select(s > s6 ? s + 2 : s6 + 2, &readfds, NULL, NULL, &tv);
         if(rc < 0) {
             if(errno != EINTR) {
                 perror("select");
                 sleep(1);
             }
         }
-
-        if(exiting)
-            break;
 
         if(rc > 0) {
             fromlen = sizeof(from);
@@ -388,9 +453,38 @@ main(int argc, char **argv)
             else if(s6 >= 0 && FD_ISSET(s6, &readfds))
                 rc = recvfrom(s6, buf, sizeof(buf) - 1, 0,
                               (struct sockaddr*)&from, &fromlen);
-            else
+            else if(FD_ISSET(STDIN_FILENO, &readfds)) {
+                rc = read(STDIN_FILENO, buf, 1);
+                if(rc > 0) {
+                    buf[rc] = '\0';
+                    switch(buf[0]) {
+                        case 'q':
+                        case 'e':
+                            exiting = 1;
+                            break;
+                        case 's':
+                            print_stats();
+                            break;
+                        case 'd':
+                            dumping = 1;
+                            break;
+                        case 't':
+                            printf("\e[1mSearching for hash '"); print_hex(hash, sizeof(hash)); printf("'\e[0m\n");
+                            searching = 1;
+                            break;
+                        case 'h':
+                            print_help();
+                            break;
+                    }
+                    rc=0; // make sure keyboard input is not passed to dht_periodic
+                }
+            } else {
                 abort();
+            }
         }
+
+        if(exiting)
+            break;
 
         if(rc > 0) {
             buf[rc] = '\0';
@@ -424,19 +518,18 @@ main(int argc, char **argv)
 
         /* For debugging, or idle curiosity. */
         if(dumping) {
+            printf("\e[1m");
             dht_dump_tables(stdout);
+            printf("\e[0m");
             dumping = 0;
         }
     }
 
-    {
-        struct sockaddr_in sin[500];
-        struct sockaddr_in6 sin6[500];
-        int num = 500, num6 = 500;
-        int i;
-        i = dht_get_nodes(sin, &num, sin6, &num6);
-        printf("Found %d (%d + %d) good nodes.\n", i, num, num6);
-    }
+    /* Print statistics */
+    print_stats();
+
+    /* Restore previous terminal settings */
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &term_old);
 
     dht_uninit();
     return 0;
