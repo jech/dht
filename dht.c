@@ -125,6 +125,8 @@ extern const char *inet_ntop(int, const void *, char *, socklen_t);
 
 struct node {
     unsigned char id[20];
+    unsigned char v[4];         /* client identifier and version info */
+    int have_v;                 /* indicates wether v is set or not */
     struct sockaddr_storage ss;
     int sslen;
     time_t time;                /* time of last message received */
@@ -293,6 +295,8 @@ struct parsed_message {
     unsigned char values6[PARSE_VALUES6_LEN];
     unsigned short values6_len;
     unsigned short want;
+    unsigned char v[4];
+    int have_v;
 };
 
 static int parse_message(const unsigned char *buf, int buflen,
@@ -1000,7 +1004,7 @@ split_bucket(struct bucket *b)
 /* We just learnt about a node, not necessarily a new one.  Confirm is 1 if
    the node sent a message, 2 if it sent us a reply. */
 static struct node *
-new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
+new_node(const unsigned char *id, const unsigned char *v, int have_v, const struct sockaddr *sa, int salen,
          int confirm)
 {
     struct bucket *b;
@@ -1024,11 +1028,12 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
     if(confirm == 2)
         b->time = now.tv_sec;
 
+    /* Determine if we already know this node. */
     n = b->nodes;
     while(n) {
         if(id_cmp(n->id, id) == 0) {
+            /* Known node.  Update stuff. */
             if(confirm || n->time < now.tv_sec - 15 * 60) {
-                /* Known node.  Update stuff. */
                 memcpy((struct sockaddr*)&n->ss, sa, salen);
                 if(confirm)
                     n->time = now.tv_sec;
@@ -1040,6 +1045,10 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
             }
             if(confirm == 2)
                 add_search_node(id, sa, salen);
+            if(!n->have_v && have_v && v != NULL) {
+                memcpy(n->v, v, 4);
+                n->have_v = 1;
+            }
             return n;
         }
         n = n->next;
@@ -1120,6 +1129,12 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
     if(n == NULL)
         return NULL;
     memcpy(n->id, id, 20);
+    if(have_v && v != NULL) {
+        memcpy(n->v, v, 4);
+        n->have_v = 1;
+    } else {
+        n->have_v = 0;
+    }
     memcpy(&n->ss, sa, salen);
     n->sslen = salen;
     n->time = confirm ? now.tv_sec : 0;
@@ -1853,10 +1868,10 @@ dump_buckets(int af)
         return;
     }
 
-    const char *fmt_header = (af == AF_INET ? "   %-4s %-40s %-4s %-21s %-10s %-10s %-5s %-4s" :
-                                              "   %-4s %-40s %-4s %-47s %-10s %-10s %-5s %-4s");
-    const char *fmt_entry  = (af == AF_INET ? "   %-4i %-40s %-4d %-21s %-10ld %-10ld %-5d %-4s" :
-                                              "   %-4i %-40s %-4d %-47s %-10ld %-10ld %-5d %-4s");
+    const char *fmt_header = (af == AF_INET ? "   %-4s %-40s %-4s %-21s %-10s %-10s %-10s %-5s %-4s" :
+                                              "   %-4s %-40s %-4s %-47s %-10s %-10s %-10s %-5s %-4s");
+    const char *fmt_entry  = (af == AF_INET ? "   %-4i %-40s %-4d %-21s %-10s %-10ld %-10ld %-5d %-4s" :
+                                              "   %-4i %-40s %-4d %-47s %-10s %-10ld %-10ld %-5d %-4s");
     int bi = 0;
     while(b) {
         infof("\n");
@@ -1869,10 +1884,11 @@ dump_buckets(int af)
         int ni = 0;
         struct node *n = b->nodes;
         if(n) {
-            infof(fmt_header, "Node", "ID", "Dist", "IP-Address", "Age", "Age-Reply", "Pings", "Good");
+            infof(fmt_header, "Node", "ID", "Dist", "IP-Address", "Client", "Age", "Age-Reply", "Pings", "Good");
             while(n) {
                 infof(fmt_entry, ni, id_to_hex(n->id), distance(myid, n->id),
                       sa_to_str((struct sockaddr*)&n->ss),
+                      (n->have_v ? v_to_str(n->v) : "-"),
                       (n->time ? (long)(now.tv_sec - n->time) : 0),
                       (n->reply_time ? (long)(now.tv_sec - n->reply_time) : 0),
                       n->pinged, (node_good(n) ? "yes" : "no"));
@@ -2305,7 +2321,7 @@ dht_periodic(const void *buf, size_t buflen,
             }
             if(tid_match(m.tid, "pn", NULL)) {
                 debugf("Received pong from node %s", sa_to_str(from));
-                new_node(m.id, from, fromlen, 2);
+                new_node(m.id, m.v, m.have_v, from, fromlen, 2);
             } else if(tid_match(m.tid, "fn", NULL) ||
                       tid_match(m.tid, "gp", NULL)) {
                 int gp = 0;
@@ -2324,10 +2340,10 @@ dht_periodic(const void *buf, size_t buflen,
                 } else if(gp && sr == NULL) {
                     warnf("Received peers from node %s, but couldn't find any matching search",
                           sa_to_str(from));
-                    new_node(m.id, from, fromlen, 1);
+                    new_node(m.id, m.v, m.have_v, from, fromlen, 1);
                 } else {
                     int i;
-                    new_node(m.id, from, fromlen, 2);
+                    new_node(m.id, m.v, m.have_v, from, fromlen, 2);
                     for(i = 0; i < m.nodes_len / 26; i++) {
                         unsigned char *ni = m.nodes + i * 26;
                         struct sockaddr_in sin;
@@ -2337,7 +2353,7 @@ dht_periodic(const void *buf, size_t buflen,
                         sin.sin_family = AF_INET;
                         memcpy(&sin.sin_addr, ni + 20, 4);
                         memcpy(&sin.sin_port, ni + 24, 2);
-                        new_node(ni, (struct sockaddr*)&sin, sizeof(sin), 0);
+                        new_node(ni, NULL, 0, (struct sockaddr*)&sin, sizeof(sin), 0);
                         if(sr && sr->af == AF_INET) {
                             insert_search_node(ni,
                                                (struct sockaddr*)&sin,
@@ -2354,7 +2370,7 @@ dht_periodic(const void *buf, size_t buflen,
                         sin6.sin6_family = AF_INET6;
                         memcpy(&sin6.sin6_addr, ni + 20, 16);
                         memcpy(&sin6.sin6_port, ni + 36, 2);
-                        new_node(ni, (struct sockaddr*)&sin6, sizeof(sin6), 0);
+                        new_node(ni, NULL, 0, (struct sockaddr*)&sin6, sizeof(sin6), 0);
                         if(sr && sr->af == AF_INET6) {
                             insert_search_node(ni,
                                                (struct sockaddr*)&sin6,
@@ -2392,10 +2408,10 @@ dht_periodic(const void *buf, size_t buflen,
                 if(!sr) {
                     warnf("Reply to announce_peer received from node %s does not match any known search",
                           sa_to_str(from));
-                    new_node(m.id, from, fromlen, 1);
+                    new_node(m.id, m.v, m.have_v, from, fromlen, 1);
                 } else {
                     int i;
-                    new_node(m.id, from, fromlen, 2);
+                    new_node(m.id, m.v, m.have_v, from, fromlen, 2);
                     for(i = 0; i < sr->numnodes; i++)
                         if(id_cmp(sr->nodes[i].id, m.id) == 0) {
                             sr->nodes[i].request_time = 0;
@@ -2415,13 +2431,13 @@ dht_periodic(const void *buf, size_t buflen,
             break;
         case PING:
             debugf("Received ping from node %s", sa_to_str(from));
-            new_node(m.id, from, fromlen, 1);
+            new_node(m.id, m.v, m.have_v, from, fromlen, 1);
             debugf("Sending pong to node %s", sa_to_str(from));
             send_pong(from, fromlen, m.tid, m.tid_len);
             break;
         case FIND_NODE:
             debugf("Received find_node from node %s", sa_to_str(from));
-            new_node(m.id, from, fromlen, 1);
+            new_node(m.id, m.v, m.have_v, from, fromlen, 1);
             debugf("Sending closest nodes to node %s", sa_to_str(from));
             send_closest_nodes(from, fromlen,
                                m.tid, m.tid_len, m.target, m.want,
@@ -2429,7 +2445,7 @@ dht_periodic(const void *buf, size_t buflen,
             break;
         case GET_PEERS:
             debugf("Received get_peers from node %s", sa_to_str(from));
-            new_node(m.id, from, fromlen, 1);
+            new_node(m.id, m.v, m.have_v, from, fromlen, 1);
             if(id_cmp(m.info_hash, zeroes) == 0) {
                 warnf("Get_peers received from node %s does not contain an info_hash",
                       sa_to_str(from));
@@ -2458,7 +2474,7 @@ dht_periodic(const void *buf, size_t buflen,
             break;
         case ANNOUNCE_PEER:
             debugf("Received announce_peer from node %s", sa_to_str(from));
-            new_node(m.id, from, fromlen, 1);
+            new_node(m.id, m.v, m.have_v, from, fromlen, 1);
             if(id_cmp(m.info_hash, zeroes) == 0) {
                 warnf("Announce_peer received from node %s does not contain an info_hash",
                       sa_to_str(from));
@@ -2665,7 +2681,7 @@ dht_insert_node(const unsigned char *id, struct sockaddr *sa, int salen)
         return -1;
     }
 
-    n = new_node(id, sa, salen, 0);
+    n = new_node(id, NULL, 0, sa, salen, 0);
     return !!n;
 }
 
@@ -3267,6 +3283,15 @@ parse_message(const unsigned char *buf, int buflen,
         }
         if(i >= buflen || buf[i] != 'e')
             warnf("Encountered unexpected end for want while parsing message");
+    }
+
+    p = dht_memmem(buf, buflen, "1:v4:", 5);
+    if(p) {
+        CHECK(p + 5, 4);
+        memcpy(m->v, p + 5, 4);
+        m->have_v = 1;
+    } else {
+        m->have_v = 0;
     }
 
 #undef CHECK
