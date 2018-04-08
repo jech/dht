@@ -2437,7 +2437,7 @@ dht_insert_node(const unsigned char *id, struct sockaddr *sa, int salen)
 {
     struct node *n;
 
-    if(sa->sa_family != AF_INET) {
+    if(sa->sa_family != AF_INET && sa->sa_family != AF_INET6) {
         errno = EAFNOSUPPORT;
         return -1;
     }
