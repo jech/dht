@@ -62,6 +62,8 @@ int dht_nodes(int af,
 void dht_dump_tables();
 int dht_get_nodes(struct sockaddr_in *sin, int *num,
                   struct sockaddr_in6 *sin6, int *num6);
+int dht_save_state(void **buffer, size_t *buflen);
+int dht_load_state(void *buffer, size_t buflen);
 int dht_uninit(void);
 
 /* Provided by user. */

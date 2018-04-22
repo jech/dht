@@ -124,39 +124,39 @@ extern const char *inet_ntop(int, const void *, char *, socklen_t);
 #define MIN(x, y) ((x) <= (y) ? (x) : (y))
 
 struct node {
-    unsigned char id[20];
-    struct sockaddr_storage ss;
-    int sslen;
-    time_t time;                /* time of last message received */
-    time_t reply_time;          /* time of last correct reply received */
-    time_t pinged_time;         /* time of last request */
-    int pinged;                 /* how many requests we sent since last reply */
-    struct node *next;
+    unsigned char id[20];           /* node id */
+    struct sockaddr_storage ss;     /* node address */
+    int sslen;                      /* size/length of address ss */
+    time_t time;                    /* time of last message received */
+    time_t reply_time;              /* time of last correct reply received */
+    time_t pinged_time;             /* time of last request */
+    int pinged;                     /* how many requests we sent since last reply */
+    struct node *next;              /* pointer to next node */
 };
 
 struct bucket {
-    int af;
-    unsigned char first[20];
-    int count;                  /* number of nodes */
-    int max_count;              /* max number of nodes for this bucket */
-    time_t time;                /* time of last reply in this bucket */
-    struct node *nodes;
-    struct sockaddr_storage cached;  /* the address of a likely candidate */
-    int cachedlen;
-    struct bucket *next;
+    int af;                         /* address family */
+    unsigned char first[20];        /* bucket id */
+    int count;                      /* number of nodes */
+    int max_count;                  /* max number of nodes for this bucket */
+    time_t time;                    /* time of last reply in this bucket */
+    struct node *nodes;             /* pointer to list of nodes within this bucket */
+    struct sockaddr_storage cached; /* the address of a likely candidate */
+    int cachedlen;                  /* size/length of address cached */
+    struct bucket *next;            /* pointer to next bucket */
 };
 
 struct search_node {
     unsigned char id[20];
     struct sockaddr_storage ss;
     int sslen;
-    time_t request_time;        /* the time of the last unanswered request */
-    time_t reply_time;          /* the time of the last reply */
+    time_t request_time;            /* the time of the last unanswered request */
+    time_t reply_time;              /* the time of the last reply */
     int pinged;
     unsigned char token[40];
     int token_len;
-    int replied;                /* whether we have received a reply */
-    int acked;                  /* whether they acked our announcement */
+    int replied;                    /* whether we have received a reply */
+    int acked;                      /* whether they acked our announcement */
 };
 
 /* When performing a search, we search for up to SEARCH_NODES closest nodes
@@ -167,9 +167,9 @@ struct search_node {
 struct search {
     unsigned short tid;
     int af;
-    time_t step_time;           /* the time of the last search_step */
+    time_t step_time;               /* the time of the last search_step */
     unsigned char id[20];
-    unsigned short port;        /* 0 for pure searches */
+    unsigned short port;            /* 0 for pure searches */
     int done;
     struct search_node nodes[SEARCH_NODES];
     int numnodes;
@@ -318,11 +318,11 @@ static unsigned char oldsecret[8];
 
 static struct bucket *buckets = NULL;
 static struct bucket *buckets6 = NULL;
-static struct storage *storage;
-static int numstorage;
+static struct storage *storage = NULL;
+static int numstorage = 0;
 
 static struct search *searches = NULL;
-static int numsearches;
+static int numsearches = 0;
 static unsigned short search_id;
 
 /* The maximum number of nodes that we snub.  There is probably little
@@ -331,7 +331,7 @@ static unsigned short search_id;
 #define DHT_MAX_BLACKLISTED 10
 #endif
 static struct sockaddr_storage blacklist[DHT_MAX_BLACKLISTED];
-int next_blacklisted;
+int next_blacklisted = 0;
 
 static struct timeval now;
 static time_t mybucket_grow_time, mybucket6_grow_time;
@@ -340,6 +340,11 @@ static time_t expire_stuff_time;
 #define MAX_TOKEN_BUCKET_TOKENS 400
 static time_t token_bucket_time;
 static int token_bucket_tokens;
+
+/* Magic to identify saved state binary format.  The version should be
+   incremented when the binary format changes to prevent loading states
+   that were saved using the previous, now unsupported format. */
+static const unsigned char dht_state_magic[19] = "DHT-SAVED-STATE-1.0";
 
 /* Log incoming messages. */
 #ifndef DHT_LOG_INCOMING_MESSAGES
@@ -932,6 +937,7 @@ split_bucket_helper(struct bucket *b, struct node **nodes_return)
     new->af = b->af;
     memcpy(new->first, new_id, 20);
     new->time = b->time;
+    new->nodes = NULL;
 
     *nodes_return = b->nodes;
     b->nodes = NULL;
@@ -1973,11 +1979,13 @@ dht_dump_tables()
 int
 dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
 {
-    int rc;
-
     if(dht_socket >= 0 || dht_socket6 >= 0 || buckets || buckets6) {
         warnf("Unable to initialize DHT, already initialized");
         errno = EBUSY;
+        return -1;
+    }
+    if((s < 0 && s6 < 0) || id == NULL) {
+        errno = EINVAL;
         return -1;
     }
 
@@ -1989,20 +1997,24 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
     storage = NULL;
     numstorage = 0;
 
+    buckets = NULL;
     if(s >= 0) {
         buckets = calloc(1, sizeof(struct bucket));
         if(buckets == NULL)
             return -1;
         buckets->max_count = 128;
         buckets->af = AF_INET;
+        buckets->next = NULL;
     }
 
+    buckets6 = NULL;
     if(s6 >= 0) {
         buckets6 = calloc(1, sizeof(struct bucket));
         if(buckets6 == NULL)
             return -1;
         buckets6->max_count = 128;
         buckets6->af = AF_INET6;
+        buckets6->next = NULL;
     }
 
     memcpy(myid, id, 20);
@@ -2029,7 +2041,7 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
     token_bucket_tokens = MAX_TOKEN_BUCKET_TOKENS;
 
     memset(secret, 0, sizeof(secret));
-    rc = rotate_secrets();
+    int rc = rotate_secrets();
     if(rc < 0)
         goto fail;
 
@@ -3290,4 +3302,473 @@ parse_message(const unsigned char *buf, int buflen,
  overflow:
     warnf("Encountered unexpected end of message while parsing message");
     return -1;
+}
+
+/* Writes data to buffer. */
+int
+bwrite(void **buf, size_t *bufpos, size_t *bufpos_old, size_t *buflen, const void *src, size_t srclen, size_t n)
+{
+    /* Sanity checks for buffer. */
+    if(buf == NULL) {
+        errorf("bwrite: no reference to buffer provided");
+        errno = EINVAL;
+        return 0;
+    }
+    if(buflen == NULL) {
+        errorf("bwrite: no reference to buffer length provided");
+        errno = EINVAL;
+        return 0;
+    }
+    if(*buf == NULL && bufpos != NULL && *bufpos != 0) {
+        errorf("bwrite: buffer == NULL, but buffer position != 0 (*bufpos: %lu)", *bufpos);
+        errno = EINVAL;
+        return 0;
+    }
+    if(*buf == NULL && *buflen != 0) {
+        errorf("bwrite: buffer == NULL, but buffer length != 0 (*buflen: %lu)", *buflen);
+        errno = EINVAL;
+        return 0;
+    }
+    if(*buf != NULL && *buflen == 0) {
+        errorf("bwrite: buffer != NULL, but buffer length == 0");
+        errno = EINVAL;
+        return 0;
+    }
+
+    /* Sanity checks for source. */
+    if(src == NULL) {
+        errorf("bwrite: source == NULL");
+        errno = EINVAL;
+        return 0;
+    }
+    if(srclen < n) {
+        errorf("bwrite: source does not provide enough data (required: %lu bytes, available: %lu bytes)", n, srclen);
+        errno = ENODATA;
+        return 0;
+    }
+
+    /* Grow buffer if necessary. */
+    size_t buf_avail = (bufpos != NULL ? *buflen-*bufpos : *buflen);
+    if(buf_avail < n) {
+        size_t buf_grow = n - buf_avail;
+        //debugf("bwrite: growing buffer (available: %lu bytes, required: %lu bytes, grow: %lu, old size: %lu bytes, new size: %lu bytes)", buf_avail, n, buf_grow, *buflen, *buflen + buf_grow);
+        void *tmp = realloc(*buf, *buflen + buf_grow);
+        if(!tmp) {
+            perror("realloc");
+            errorf("bwrite: failed to grow buffer (available: %lu bytes, required: %lu bytes, grow: %lu, old size: %lu bytes, new size: %lu bytes)", buf_avail, n, buf_grow, *buflen, *buflen + buf_grow);
+            errno = ENOMEM;
+            return 0;
+        }
+        *buf = tmp;
+        *buflen += buf_grow;
+    }
+
+    /* Write data to buffer. */
+    memcpy((bufpos == NULL ? *buf : *buf + *bufpos), src, n);
+    if(bufpos != NULL) {
+        if(bufpos_old != NULL)
+            *bufpos_old = *bufpos;
+        *bufpos += n;
+    }
+
+    /* Success. */
+    return 1;
+}
+
+/* Reads data from buffer. */
+int
+bread(const void *buf, size_t *bufpos, size_t *bufpos_old, size_t buflen, void *dst, size_t dstlen, size_t n)
+{
+    /* Sanity checks for buffer. */
+    if(buf == NULL) {
+        errorf("bread: buffer == NULL");
+        errno = EINVAL;
+        return 0;
+    }
+    if(bufpos != NULL && *bufpos > buflen) {
+        errorf("bread: buffer position > buffer length (*bufpos: %lu, buflen: %lu)", *bufpos, buflen);
+        errno = EINVAL;
+        return 0;
+    }
+    size_t buf_avail = (bufpos != NULL ? buflen-*bufpos : buflen);
+    if(buf_avail < n) {
+        errorf("bread: buffer does not provide enough data (required: %lu bytes, available: %lu bytes)", n, buf_avail);
+        errno = ENODATA;
+        return 0;
+    }
+
+    /* Sanity checks for destination. */
+    if(dst == NULL) {
+        errorf("bread: destination == NULL");
+        errno = EINVAL;
+        return 0;
+    }
+    if(dstlen < n) {
+        errorf("bread: destination does not provide enough space (required: %lu bytes, available: %lu bytes)", n, dstlen);
+        errno = EOVERFLOW;
+        return 0;
+    }
+
+    /* Read data from buffer. */
+    memcpy(dst, (bufpos == NULL ? buf : buf + *bufpos), n);
+    if(bufpos != NULL) {
+        if(bufpos_old != NULL)
+            *bufpos_old = *bufpos;
+        *bufpos += n;
+    }
+
+    /* Success. */
+    return 1;
+}
+
+/*
+   Saves current state in binary format.
+
+   Binary format:
+   <magic><myid><bucket-1><nodes-of-bucket-1>...<bucket-n><nodes-of-bucket-n>
+   with <nodes-of-bucket-1> = <node-1-of-bucket-1>...<node-n-of-bucket-1>
+*/
+int
+dht_save_state(void **buf, size_t *buflen)
+{
+    /* Sanity checks. */
+    if(dht_socket < 0 && dht_socket6 < 0) {
+        errorf("Unable to save state, DHT not initialized");
+        errno = EINVAL;
+        return 0;
+    }
+    if(buf == NULL) {
+        errorf("Unable to save state, no reference to buffer provided");
+        errno = EINVAL;
+        return 0;
+    }
+    if(buflen == NULL) {
+        errorf("Unable to save state, no reference to buffer length provided");
+        errno = EINVAL;
+        return 0;
+    }
+    if(*buf == NULL && *buflen != 0) {
+        errorf("Unable to save state, buffer == NULL, but buffer length != 0 (*buflen: %lu)", *buflen);
+        errno = EINVAL;
+        return 0;
+    }
+    if(*buf != NULL && *buflen == 0) {
+        errorf("Unable to save state, buffer != NULL, but buffer length == 0");
+        errno = EINVAL;
+        return 0;
+    }
+
+    /* Begin saving state. */
+    infof("Saving state");
+    size_t bufpos = 0;
+    size_t bufpos_old = 0;
+
+    /* Write magic. */
+    debugf("\n");
+    debugf("Writing magic to offset %lu (size: %lu bytes, content: %s)", bufpos, sizeof(dht_state_magic), ba_to_str(dht_state_magic, sizeof(dht_state_magic)));
+    if(!bwrite(buf, &bufpos, &bufpos_old, buflen, dht_state_magic, sizeof(dht_state_magic), sizeof(dht_state_magic))) {
+        errorf("Failed to write magic to offset %lu (size: %lu bytes, content: %s)", bufpos, sizeof(dht_state_magic), ba_to_str(dht_state_magic, sizeof(dht_state_magic)));
+        goto error;
+    }
+    debugf("Wrote magic to offset %lu (size: %lu bytes, content: %s)", bufpos_old, sizeof(dht_state_magic), ba_to_str(dht_state_magic, sizeof(dht_state_magic)));
+
+    /* Write myid. */
+    debugf("\n");
+    debugf("Writing myid to offset %lu (size: %lu bytes, content: %s)", bufpos, sizeof(myid), id_to_hex(myid));
+    if(!bwrite(buf, &bufpos, &bufpos_old, buflen, myid, sizeof(myid), sizeof(myid))) {
+        errorf("Failed to write myid to offset %lu (size: %lu bytes, content: %s)", bufpos, sizeof(myid), id_to_hex(myid));
+        goto error;
+    }
+    debugf("Wrote myid to offset %lu (size: %lu bytes, content: %s)", bufpos_old, sizeof(myid), id_to_hex(myid));
+
+    /*
+       Write buckets and nodes.
+       int bi, bc           bucket index/count
+       int ni, nc           node index/count
+       struct bucket *b     current bucket
+       struct node *n       current node
+    */
+    debugf("\n");
+    debugf("Writing buckets and nodes to offset %lu", bufpos);
+    int bi = 0, bc = 0;
+    int ni = 0, nc = 0;
+    int af = AF_INET;
+next_af:;
+    struct bucket *b = (af == AF_INET ? buckets : buckets6);
+    while(b) {
+
+        /* Write bucket. */
+        debugf("\n");
+        debugf("Writing bucket #%i to offset %lu (size: %lu bytes, id: %s, type: %s, nodes: %i/%i)", bi, bufpos, sizeof(struct bucket), id_to_hex(b->first), af_to_ivs(b->af), b->count, b->max_count);
+        if(!bwrite(buf, &bufpos, &bufpos_old, buflen, b, sizeof(struct bucket), sizeof(struct bucket))) {
+            errorf("Failed to write bucket #%i to offset %lu (size: %lu bytes, id: %s, type: %s, nodes: %i/%i)", bi, bufpos, sizeof(struct bucket), id_to_hex(b->first), af_to_ivs(b->af), b->count, b->max_count);
+            goto error;
+        }
+        debugf("Wrote bucket #%i to offset %lu (size: %lu bytes, id: %s, type: %s, nodes: %i/%i)", bi, bufpos_old, sizeof(struct bucket), id_to_hex(b->first), af_to_ivs(b->af), b->count, b->max_count);
+        bc++;
+
+        /* Write nodes. */
+        if(b->count > 0) {
+            debugf("Writing %i nodes of bucket #%i to offset %lu (size: %lu bytes)", b->count, bi, bufpos, b->count * sizeof(struct node));
+            ni = 0;
+            struct node *n = b->nodes;
+            while(n) {
+                //debugf("Writing node #%i of bucket #%i to offset %lu (size: %lu bytes, address: %s)", ni, bi, bufpos, sizeof(struct node), sa_to_str((struct sockaddr*)&n->ss));
+                if(!bwrite(buf, &bufpos, &bufpos_old, buflen, n, sizeof(struct node), sizeof(struct node))) {
+                    errorf("Failed to write node #%i of bucket #%i to offset %lu (size: %lu bytes, address: %s)", ni, bi, bufpos, sizeof(struct node), sa_to_str((struct sockaddr*)&n->ss));
+                    goto error;
+                }
+                //debugf("Wrote node #%i of bucket #%i to offset %lu (size: %lu bytes, address: %s)", ni, bi, bufpos_old, sizeof(struct node), sa_to_str((struct sockaddr*)&n->ss));
+                nc++;
+
+                /* Next node. */
+                n = n->next;
+                ni++;
+            }
+            debugf("Wrote %i nodes of bucket #%i (size: %lu bytes)", b->count, bi, b->count * sizeof(struct node));
+            if(ni != b->count) {
+                errorf("Unexpected number of nodes in node list of bucket #%i (expected: %i, got: %i)", bi, b->count, ni);
+                goto error;
+            }
+        }
+
+        /* Next bucket. */
+        b = b->next;
+        bi++;
+    }
+    if(af == AF_INET) {
+        af = AF_INET6;
+        goto next_af;
+    }
+    debugf("\n");
+    debugf("Wrote a total of %i buckets containing %i nodes (size: %lu bytes)", bc, nc, *buflen);
+    debugf("\n");
+
+    /* Success. */
+    infof("Saved state");
+    return 1;
+
+    /* Failure. */
+error:
+    debugf("Freeing buffer");
+    free(*buf);
+    *buf = NULL;
+    *buflen = 0;
+    errorf("Failed to save state");
+    return 0;
+}
+
+/*
+   Loads saved state from binary format.
+
+   Binary format:
+   <magic><myid><bucket-1><nodes-of-bucket-1>...<bucket-n><nodes-of-bucket-n>
+   with <nodes-of-bucket-1> = <node-1-of-bucket-1>...<node-n-of-bucket-1>
+*/
+int
+dht_load_state(void *buf, size_t buflen)
+{
+    /* Sanity checks. */
+    if(dht_socket < 0 && dht_socket6 < 0) {
+        errorf("Unable to load state, DHT not initialized");
+        errno = EINVAL;
+        return 0;
+    }
+    if(buf == NULL || buflen == 0) {
+        errorf("Unable to load state, buf == NULL and/or buflen == 0");
+        errno = EINVAL;
+        return 0;
+    }
+
+    /* Begin loading state. */
+    infof("Loading saved state (size: %lu bytes)", buflen);
+    size_t bufpos = 0;
+    size_t bufpos_old = 0;
+
+    /* Backup data required for calling dht_init(). */
+    debugf("\n");
+    debugf("Backing up data for reinitialization");
+    int s = dht_socket;
+    int s6 = dht_socket6;
+    unsigned char id[20];
+    memcpy(id, myid, sizeof(id));
+    unsigned char v_id[4];
+    memcpy(v_id, my_v + 5, 4);
+    unsigned char *v = (have_v ? v_id : NULL);
+
+    /* Reinitialize to reset state, delete default buckets. */
+    debugf("Reinitializing and resetting state");
+    debugf("\n");
+    dht_uninit();
+    dht_init(s, s6, id, v);
+    free(buckets);
+    buckets = NULL;
+    free(buckets6);
+    buckets6 = NULL;
+
+    /* Read magic. */
+    debugf("\n");
+    debugf("Reading magic from offset %lu (size: %lu)", bufpos, sizeof(dht_state_magic));
+    unsigned char magic[sizeof(dht_state_magic)];
+    if(!bread(buf, &bufpos, &bufpos_old, buflen, magic, sizeof(dht_state_magic), sizeof(dht_state_magic))) {
+        errorf("Failed to read magic from offset %lu (size: %lu)", bufpos, sizeof(dht_state_magic));
+        goto error;
+    }
+    debugf("Read magic from offset %lu (size: %lu, content: %s)", bufpos_old, sizeof(dht_state_magic), ba_to_str(magic, sizeof(dht_state_magic)));
+    if(memcmp(magic, dht_state_magic, sizeof(dht_state_magic)) != 0) {
+        errorf("Saved state format is not recognized/supported (expected: %s)", ba_to_str(dht_state_magic, sizeof(dht_state_magic)));
+        errorf("Saved state format is not recognized/supported (got: %s)", ba_to_str(magic, sizeof(dht_state_magic)));
+        goto error;
+    }
+
+    /* Read myid. */
+    debugf("\n");
+    debugf("Reading myid from offset %lu (size: %lu)", bufpos, sizeof(myid));
+    if(!bread(buf, &bufpos, &bufpos_old, buflen, myid, sizeof(myid), sizeof(myid))) {
+        errorf("Failed to read myid from offset %lu (size: %lu)", bufpos, sizeof(myid));
+        goto error;
+    }
+    debugf("Read myid from offset %lu (size: %lu, content: %s)", bufpos_old, sizeof(myid), id_to_hex(myid));
+
+    /*
+       Read buckets and nodes.
+       int bi, bc               bucket index/count
+       int ni, nc               node index/count
+       struct bucket *b4_last,  last encountered IPv4 bucket
+       struct bucket *b6_last   last encountered IPv6 bucket
+       struct node *n_last      last encountered node of current bucket
+       struct bucket b_tmp,     static struct for bucket/node, used as temporary
+       struct node n_tmp        storage when reading structs to eliminate the
+                                need to keep track of freeing allocated memory
+                                when aborting due to error
+       struct bucket *b,        dynamically allocated bucket/node created from
+       struct node *n           b_tmp/n_tmp when storing bucket/node
+    */
+    debugf("\n");
+    debugf("Reading buckets and nodes from offset %lu", bufpos);
+    int bi = 0, bc = 0;
+    int ni = 0, nc = 0;
+    struct bucket *b4_last = NULL;
+    struct bucket *b6_last = NULL;
+    while(bufpos < buflen && buflen-bufpos >= sizeof(struct bucket)) {
+
+        /* Read bucket. */
+        debugf("\n");
+        debugf("Reading bucket #%i from offset %lu (size: %lu)", bi, bufpos, sizeof(struct bucket));
+        struct bucket b_tmp;
+        if(!bread(buf, &bufpos, &bufpos_old, buflen, &b_tmp, sizeof(struct bucket), sizeof(struct bucket))) {
+            errorf("Failed to read bucket #%i from offset %lu (size: %lu)", bi, bufpos, sizeof(struct bucket));
+            goto error;
+        }
+        debugf("Read bucket #%i from offset %lu (size: %lu, id: %s, type: %s, nodes: %i/%i)", bi, bufpos_old, sizeof(struct bucket), id_to_hex(b_tmp.first), af_to_ivs(b_tmp.af), b_tmp.count, b_tmp.max_count);
+        if(b_tmp.af != AF_INET && b_tmp.af != AF_INET6) {
+            errorf("Bucket #%i has unsupported address family (af: %i)", bi, b_tmp.af);
+            goto error;
+        }
+
+        /* Skip bucket/nodes if address family is disabled. */
+        if( (b_tmp.af == AF_INET && dht_socket < 0) || (b_tmp.af == AF_INET6 && dht_socket6 < 0) ) {
+            debugf("%s disabled, skipping %i nodes of bucket #%i (size: %lu)", af_to_ivs(b_tmp.af), b_tmp.count, bi, b_tmp.count * sizeof(struct node));
+            bufpos += b_tmp.count * sizeof(struct node);
+            goto skip_bucket;
+        }
+
+        /* Create new bucket, copy data, enqueue and count. */
+        //debugf("Allocating and storing bucket #%i", bi);
+        struct bucket *b = calloc(1, sizeof(struct bucket));
+        if(b == NULL) {
+            perror("calloc");
+            errorf("Failed to allocate space for bucket #%i", bi);
+            goto error;
+        }
+        memcpy(b, &b_tmp, sizeof(struct bucket));
+        b->nodes = NULL;
+        b->next = NULL;
+        if(b->af == AF_INET) {
+            if(b4_last == NULL) {       /* first IPv4 bucket */
+                buckets = b;
+                b4_last = b;
+            } else {                    /* some next IPv4 bucket */
+                b4_last->next = b;
+                b4_last = b4_last->next;
+            }
+        } else {
+            if(b6_last == NULL) {       /* first IPv6 bucket */
+                buckets6 = b;
+                b6_last = b;
+            } else {                    /* some next IPv4 bucket */
+                b6_last->next = b;
+                b6_last = b6_last->next;
+            }
+        }
+        bc++;
+
+        /* Read nodes. */
+        if(b->count > 0) {
+            debugf("Reading %i nodes of bucket #%i from offset %lu (size: %lu)", b->count, bi, bufpos, b->count * sizeof(struct node));
+            struct node *n_last = NULL;
+            ni = 0;
+            while(ni < b->count) {
+
+                /* Read node. */
+                //debugf("Reading node #%i from offset %lu (size: %lu)", ni, bufpos, sizeof(struct node));
+                struct node n_tmp;
+                if(!bread(buf, &bufpos, &bufpos_old, buflen, &n_tmp, sizeof(struct node), sizeof(struct node))) {
+                    errorf("Failed to read node #%i from offset %lu (size: %lu)", ni, bufpos, sizeof(struct node));
+                    goto error;
+                }
+                //debugf("Read node #%i from offset %lu (size: %lu, id: %s, ss: %s)", ni, bufpos_old, sizeof(struct node), id_to_hex(n_tmp.id), sa_to_str((struct sockaddr*)&n_tmp.ss));
+                if(n_tmp.ss.ss_family != b->af) {
+                    errorf("Node #%i has unexpected address family (expected: %i, got: %i", ni, b->af, n_tmp.ss.ss_family);
+                    goto error;
+                }
+
+                /* Create new node, copy data, enqueue and count. */
+                //debugf("Allocating and storing node #%i", ni);
+                struct node *n = calloc(1, sizeof(struct node));
+                if(n == NULL) {
+                    perror("calloc");
+                    errorf("Failed to allocate space for node #%i", ni);
+                    goto error;
+                }
+                memcpy(n, &n_tmp, sizeof(struct node));
+                n->next = NULL;
+                if(n_last == NULL) {    /* first node of current bucket */
+                    b->nodes = n;
+                    n_last = n;
+                } else {                /* some next node of current bucket */
+                    n_last->next = n;
+                    n_last = n_last->next;
+                }
+                nc++;
+
+                /* Next node. */
+                ni++;
+            }
+            debugf("Read %i nodes of bucket #%i (size: %lu)", b->count, bi, b->count * sizeof(struct node));
+        }
+
+    skip_bucket:
+        /* Next bucket. */
+        bi++;
+    }
+    debugf("\n");
+    debugf("Read a total of %i buckets containing %i nodes (size: %lu bytes)", bc, nc, bufpos);
+    debugf("\n");
+    if(bufpos != buflen) {
+        warnf("Trailing garbage at offset %lu (size: %lu bytes, content: %s)", bufpos, buflen-bufpos, ba_to_str(buf+bufpos, buflen-bufpos));
+        warnf("\n");
+    }
+
+    /* Success. */
+    infof("Loaded saved state (size: %lu bytes)", bufpos);
+    return 1;
+
+    /* Failure. */
+error:
+    debugf("Reinitializing and resetting state");
+    dht_uninit();
+    dht_init(s, s6, id, v);
+    errorf("Failed to load saved state");
+    return 0;
 }

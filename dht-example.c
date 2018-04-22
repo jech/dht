@@ -177,10 +177,9 @@ main(int argc, char **argv)
 {
     int i, rc, fd;
     int s = -1, s6 = -1, port;
-    int have_id = 0;
     unsigned char myid[20];
     time_t tosleep = 0;
-    char *id_file = "dht-example.id";
+    char *state_file = "dht-example.dss";
     int opt;
     int quiet = 0, ipv4 = 1, ipv6 = 1;
     struct sockaddr_in sin;
@@ -219,58 +218,13 @@ main(int argc, char **argv)
             goto usage;
         }
             break;
-        case 'i':
-            id_file = optarg;
+        case 's':
+            state_file = optarg;
             break;
         default:
             goto usage;
         }
     }
-
-    /* Ids need to be distributed evenly, so you cannot just use your
-       bittorrent id.  Either generate it randomly, or take the SHA-1 of
-       something. */
-    fd = open(id_file, O_RDONLY);
-    if(fd >= 0) {
-        rc = read(fd, myid, 20);
-        if(rc == 20)
-            have_id = 1;
-        close(fd);
-    }
-
-    fd = open("/dev/urandom", O_RDONLY);
-    if(fd < 0) {
-        perror("open(random)");
-        exit(1);
-    }
-
-    if(!have_id) {
-        int ofd;
-
-        rc = read(fd, myid, 20);
-        if(rc < 0) {
-            perror("read(random)");
-            exit(1);
-        }
-        have_id = 1;
-        close(fd);
-
-        ofd = open(id_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-        if(ofd >= 0) {
-            rc = write(ofd, myid, 20);
-            if(rc < 20)
-                unlink(id_file);
-            close(ofd);
-        }
-    }
-
-    {
-        unsigned seed;
-        read(fd, &seed, sizeof(seed));
-        srandom(seed);
-    }
-
-    close(fd);
 
     if(argc < 2)
         goto usage;
@@ -385,6 +339,35 @@ main(int argc, char **argv)
         }
     }
 
+    /* Ids need to be distributed evenly, so you cannot just use your
+       bittorrent id.  Either generate it randomly, or take the SHA-1 of
+       something.
+
+       Generate a random id now.  Note that it might get overwritten when
+       a saved state is loaded (see below).
+
+       While at it, also seed the random number generator. */
+    fd = open("/dev/urandom", O_RDONLY);
+    if(fd < 0) {
+        perror("open");
+        exit(1);
+    }
+    rc = read(fd, myid, 20);
+    if(rc < 0) {
+        perror("read");
+        exit(1);
+    }
+    {
+        unsigned seed;
+        rc = read(fd, &seed, sizeof(seed));
+        if(rc < 0) {
+            perror("read");
+            exit(1);
+        }
+        srandom(seed);
+    }
+    close(fd);
+
     /* Init the dht. */
     rc = dht_init(s, s6, myid, (unsigned char*)"JC\0\0");
     if(rc < 0) {
@@ -392,7 +375,40 @@ main(int argc, char **argv)
         exit(1);
     }
 
-    init_signals();
+    /* Load state. */
+    {
+        fd = open(state_file, O_RDONLY);
+        if(fd >= 0) {
+            void *state = NULL;
+
+            long int size = lseek(fd, 0, SEEK_END);
+            if(size == -1 || lseek(fd, 0, SEEK_SET) == -1) {
+                perror("lseek");
+                goto abort_load_state;
+            }
+            if(size == 0)
+                goto abort_load_state;
+
+            state = malloc(size);
+            if(state == NULL) {
+                perror("malloc");
+                goto abort_load_state;
+            }
+            rc = read(fd, state, size);
+            if(rc == -1) {
+                perror("read");
+                goto abort_load_state;
+            }
+            if(rc != size)
+                goto abort_load_state;
+
+            dht_load_state(state, size);
+
+        abort_load_state:
+            free(state);
+            close(fd);
+        }
+    }
 
     /* For bootstrapping, we need an initial list of nodes.  This could be
        hard-wired, but can also be obtained from the nodes key of a torrent
@@ -415,6 +431,11 @@ main(int argc, char **argv)
             usleep(500000 + random() % 400000);
     }
 
+    /* Setup signal handlers. */
+    init_signals();
+
+
+    /* Main loop. */
     while(1) {
         struct timeval tv;
         fd_set readfds;
@@ -490,12 +511,30 @@ main(int argc, char **argv)
     /* Print final stats. */
     print_stats();
 
+    /* Save state. */
+    {
+        void *buf = NULL;
+        size_t buflen = 0;
+        if(dht_save_state(&buf, &buflen)) {
+            fd = open(state_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            if(fd >= 0) {
+                rc = write(fd, buf, buflen);
+                if(rc == -1)
+                    perror("write");
+                close(fd);
+                if(rc != buflen)
+                    unlink(state_file);
+            }
+            free(buf);
+        }
+    }
+
     /* Shutdown. */
     dht_uninit();
     return 0;
 
- usage:
-    printf("Usage: dht-example [-q] [-4] [-6] [-i filename] [-b address]...\n"
+usage:
+    printf("Usage: dht-example [-q] [-4] [-6] [-s filename] [-b address]...\n"
            "                   port [address port]...\n");
     exit(1);
 }
