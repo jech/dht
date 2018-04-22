@@ -78,21 +78,79 @@ const unsigned char hash[20] = {
    interesting happens.  Right now, it only happens when we get a new value or
    when a search completes, but this may be extended in future versions. */
 static void
-callback(void *closure,
-         int event,
-         const unsigned char *info_hash,
-         const void *data, size_t data_len)
+main_callback(void *closure,
+              int event,
+              const unsigned char *info_hash,
+              const void *data, size_t data_len)
 {
-    if(event == DHT_EVENT_SEARCH_DONE)
-        printf("Search done.\n");
-    else if(event == DHT_EVENT_SEARCH_DONE6)
-        printf("IPv6 search done.\n");
-    else if(event == DHT_EVENT_VALUES)
-        printf("Received %d values.\n", (int)(data_len / 6));
-    else if(event == DHT_EVENT_VALUES6)
-        printf("Received %d IPv6 values.\n", (int)(data_len / 18));
-    else
-        printf("Unknown DHT event %d.\n", event);
+    printf("dht-example: ");
+    switch(event) {
+    case DHT_EVENT_SEARCH_DONE:
+        printf("IPv4 search done");
+        break;
+    case DHT_EVENT_SEARCH_DONE6:
+        printf("IPv6 search done");
+        break;
+    case DHT_EVENT_VALUES:
+        printf("received IPv4 search results (%d peers)", (int)(data_len / 6));
+        break;
+    case DHT_EVENT_VALUES6:
+        printf("received IPv6 search results (%d peers)", (int)(data_len / 18));
+        break;
+    default:
+        printf("unknown DHT event %d", event);
+    }
+    printf("\n");
+}
+
+/* Log callback. */
+static void
+log_callback(const struct timeval *time, int type, const char *format, va_list ap)
+{
+    char *types;
+    char *cols;
+    switch(type) {
+    case DHT_LOG_TYPE_DEBUG:
+        types = "DEBUG";
+        cols = "\e[1;30m";
+        break;
+    case DHT_LOG_TYPE_INFO:
+        types = "INFO";
+        cols = "\e[1;37m";
+        break;
+    case DHT_LOG_TYPE_WARN:
+        types = "WARN";
+        cols = "\e[1;33m";
+        break;
+    case DHT_LOG_TYPE_ERROR:
+        types = "ERROR";
+        cols = "\e[1;31m";
+        break;
+    default:
+        types = "UNKNOWN";
+        cols = NULL;
+    }
+    fprintf(stderr, "%s[%ld] [%s] ", (cols ? cols : ""), time->tv_sec, types);
+    vfprintf(stderr, format, ap);
+    fprintf(stderr, "%s%s", (cols ? "\e[0m" : ""), (strcmp(format, "\n") == 0 ? "" : "\n"));
+    fflush(stderr);
+}
+
+/* Print statistics. */
+static void
+print_stats()
+{
+    int buckets4, good4, dubious4, total4;
+    int buckets6, good6, dubious6, total6;
+    dht_stats(AF_INET, &buckets4, &good4, &dubious4, &total4);
+    dht_stats(AF_INET6, &buckets6, &good6, &dubious6, &total6);
+
+    printf("\n\e[1m");
+    printf("Statistics:\n");
+    printf("buckets4: %3i, good4: %3i, dubious4: %3i, total4:  %3i\n", buckets4, good4, dubious4, total4);
+    printf("buckets6: %3i, good6: %3i, dubious6: %3i, total6:  %3i\n", buckets6, good6, dubious6, total6);
+    printf("buckets:  %3i, good:  %3i, dubious:  %3i, total:   %3i\n", buckets4+buckets6, good4+good6, dubious4+dubious6, total4+total6);
+    printf("\e[0m\n");
 }
 
 static unsigned char buf[4096];
@@ -258,10 +316,9 @@ main(int argc, char **argv)
         i++;
     }
 
-    /* If you set dht_debug to a stream, every action taken by the DHT will
-       be logged. */
+    /* Set log callback to receive log messages */
     if(!quiet)
-        dht_debug = stdout;
+        dht_set_log_callback(log_callback);
 
     /* We need an IPv4 and an IPv6 socket, bound to a stable port.  Rumour
        has it that uTorrent likes you better when it is the same as your
@@ -395,9 +452,9 @@ main(int argc, char **argv)
         if(rc > 0) {
             buf[rc] = '\0';
             rc = dht_periodic(buf, rc, (struct sockaddr*)&from, fromlen,
-                              &tosleep, callback, NULL);
+                              &tosleep, main_callback, NULL);
         } else {
-            rc = dht_periodic(NULL, 0, NULL, 0, &tosleep, callback, NULL);
+            rc = dht_periodic(NULL, 0, NULL, 0, &tosleep, main_callback, NULL);
         }
         if(rc < 0) {
             if(errno == EINTR) {
@@ -416,28 +473,24 @@ main(int argc, char **argv)
            idea to reannounce every 28 minutes or so. */
         if(searching) {
             if(s >= 0)
-                dht_search(hash, 0, AF_INET, callback, NULL);
+                dht_search(hash, 0, AF_INET, main_callback, NULL);
             if(s6 >= 0)
-                dht_search(hash, 0, AF_INET6, callback, NULL);
+                dht_search(hash, 0, AF_INET6, main_callback, NULL);
             searching = 0;
         }
 
         /* For debugging, or idle curiosity. */
         if(dumping) {
             dht_dump_tables(stdout);
+            print_stats();
             dumping = 0;
         }
     }
 
-    {
-        struct sockaddr_in sin[500];
-        struct sockaddr_in6 sin6[500];
-        int num = 500, num6 = 500;
-        int i;
-        i = dht_get_nodes(sin, &num, sin6, &num6);
-        printf("Found %d (%d + %d) good nodes.\n", i, num, num6);
-    }
+    /* Print final stats. */
+    print_stats();
 
+    /* Shutdown. */
     dht_uninit();
     return 0;
 
