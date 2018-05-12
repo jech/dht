@@ -34,6 +34,8 @@ dht_main_callback_t(void *closure, int event,
 #define DHT_EVENT_VALUES6      2
 #define DHT_EVENT_SEARCH_DONE  3
 #define DHT_EVENT_SEARCH_DONE6 4
+#define DHT_EVENT_BOOTSTRAP    5
+#define DHT_EVENT_BOOTSTRAP6   6
 
 typedef void
 dht_log_callback_t(const struct timeval *time, int type,
@@ -46,8 +48,17 @@ dht_log_callback_t(const struct timeval *time, int type,
 
 void dht_set_log_callback(dht_log_callback_t *callback);
 
+#define DHT_BOOTSTRAP_STATE_FAILED   -1
+#define DHT_BOOTSTRAP_STATE_DISABLED 0
+#define DHT_BOOTSTRAP_STATE_COMPLETE 1
+#define DHT_BOOTSTRAP_STATE_ENABLED  2
+#define DHT_BOOTSTRAP_STATE_RUNNING  3
+
 /* Provided by library. */
 int dht_init(int s, int s6, const unsigned char *id, const unsigned char *v);
+int dht_add_bootstrap_node(const struct sockaddr *sa, int salen);
+int dht_enable_bootstrap(int af, int enabled);
+int dht_bootstrap_state(int af);
 int dht_insert_node(const unsigned char *id, struct sockaddr *sa, int salen);
 int dht_ping_node(const struct sockaddr *sa, int salen);
 int dht_periodic(const void *buf, size_t buflen,

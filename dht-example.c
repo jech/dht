@@ -74,6 +74,26 @@ const unsigned char hash[20] = {
     0x1f, 0x81, 0x94, 0xa9, 0x3a, 0x16, 0x98, 0x8b, 0x72, 0x7b
 };
 
+/* Convert bootstrap state to string. */
+const char*
+bs_to_str(int state)
+{
+    switch (state) {
+        case DHT_BOOTSTRAP_STATE_FAILED:
+            return "failed";
+        case DHT_BOOTSTRAP_STATE_DISABLED:
+            return "disabled";
+        case DHT_BOOTSTRAP_STATE_COMPLETE:
+            return "complete";
+        case DHT_BOOTSTRAP_STATE_ENABLED:
+            return "enabled";
+        case DHT_BOOTSTRAP_STATE_RUNNING:
+            return "running";
+        default:
+            return "unknown";
+    }
+}
+
 /* The call-back function is called by the DHT whenever something
    interesting happens.  Right now, it only happens when we get a new value or
    when a search completes, but this may be extended in future versions. */
@@ -96,6 +116,12 @@ main_callback(void *closure,
         break;
     case DHT_EVENT_VALUES6:
         printf("received IPv6 search results (%d peers)", (int)(data_len / 18));
+        break;
+    case DHT_EVENT_BOOTSTRAP:;
+        printf("IPv4 bootstrap state change (state: %s)", bs_to_str(*((int*)data)));
+        break;
+    case DHT_EVENT_BOOTSTRAP6:;
+        printf("IPv6 bootstrap state change (state: %s)", bs_to_str(*((int*)data)));
         break;
     default:
         printf("unknown DHT event %d", event);
@@ -392,28 +418,34 @@ main(int argc, char **argv)
         exit(1);
     }
 
-    init_signals();
-
     /* For bootstrapping, we need an initial list of nodes.  This could be
        hard-wired, but can also be obtained from the nodes key of a torrent
        file, or from the PORT bittorrent message.
 
-       Dht_ping_node is the brutal way of bootstrapping -- it actually
-       sends a message to the peer.  If you know the nodes' ids, it is
-       better to use dht_insert_node. */
+       Add bootstrap nodes. */
+    int num_bootstrap_nodes4 = 0;
+    int num_bootstrap_nodes6 = 0;
     for(i = 0; i < num_bootstrap_nodes; i++) {
         socklen_t salen;
-        if(bootstrap_nodes[i].ss_family == AF_INET)
+        if(bootstrap_nodes[i].ss_family == AF_INET) {
             salen = sizeof(struct sockaddr_in);
-        else
+            num_bootstrap_nodes4++;
+        } else {
             salen = sizeof(struct sockaddr_in6);
-        dht_ping_node((struct sockaddr*)&bootstrap_nodes[i], salen);
-        /* Don't overload the DHT, or it will drop your nodes. */
-        if(i <= 128)
-            usleep(random() % 10000);
-        else
-            usleep(500000 + random() % 400000);
+            num_bootstrap_nodes6++;
+        }
+        dht_add_bootstrap_node((struct sockaddr*)&bootstrap_nodes[i], salen);
     }
+
+    /* Enable bootstrap. */
+    if(num_bootstrap_nodes4 > 0)
+        dht_enable_bootstrap(AF_INET, 1);
+    if(num_bootstrap_nodes6 > 0)
+        dht_enable_bootstrap(AF_INET6, 1);
+
+    /* Setup signal handlers. */
+    init_signals();
+
 
     while(1) {
         struct timeval tv;

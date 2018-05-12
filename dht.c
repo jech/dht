@@ -127,21 +127,21 @@ struct node {
     unsigned char id[20];
     struct sockaddr_storage ss;
     int sslen;
-    time_t time;                /* time of last message received */
-    time_t reply_time;          /* time of last correct reply received */
-    time_t pinged_time;         /* time of last request */
-    int pinged;                 /* how many requests we sent since last reply */
+    time_t time;                    /* time of last message received */
+    time_t reply_time;              /* time of last correct reply received */
+    time_t pinged_time;             /* time of last request */
+    int pinged;                     /* how many requests we sent since last reply */
     struct node *next;
 };
 
 struct bucket {
     int af;
     unsigned char first[20];
-    int count;                  /* number of nodes */
-    int max_count;              /* max number of nodes for this bucket */
-    time_t time;                /* time of last reply in this bucket */
+    int count;                      /* number of nodes */
+    int max_count;                  /* max number of nodes for this bucket */
+    time_t time;                    /* time of last reply in this bucket */
     struct node *nodes;
-    struct sockaddr_storage cached;  /* the address of a likely candidate */
+    struct sockaddr_storage cached; /* the address of a likely candidate */
     int cachedlen;
     struct bucket *next;
 };
@@ -150,13 +150,13 @@ struct search_node {
     unsigned char id[20];
     struct sockaddr_storage ss;
     int sslen;
-    time_t request_time;        /* the time of the last unanswered request */
-    time_t reply_time;          /* the time of the last reply */
+    time_t request_time;            /* the time of the last unanswered request */
+    time_t reply_time;              /* the time of the last reply */
     int pinged;
     unsigned char token[40];
     int token_len;
-    int replied;                /* whether we have received a reply */
-    int acked;                  /* whether they acked our announcement */
+    int replied;                    /* whether we have received a reply */
+    int acked;                      /* whether they acked our announcement */
 };
 
 /* When performing a search, we search for up to SEARCH_NODES closest nodes
@@ -167,9 +167,9 @@ struct search_node {
 struct search {
     unsigned short tid;
     int af;
-    time_t step_time;           /* the time of the last search_step */
+    time_t step_time;               /* the time of the last search_step */
     unsigned char id[20];
-    unsigned short port;        /* 0 for pure searches */
+    unsigned short port;            /* 0 for pure searches */
     int done;
     struct search_node nodes[SEARCH_NODES];
     int numnodes;
@@ -181,6 +181,28 @@ struct peer {
     unsigned char ip[16];
     unsigned short len;
     unsigned short port;
+};
+
+struct storage {
+    unsigned char id[20];
+    int numpeers, maxpeers;
+    struct peer *peers;
+    struct storage *next;
+};
+
+struct bootstrap_node {
+    struct sockaddr_storage ss;     /* node address */
+    int sslen;                      /* size/length of address ss */
+    struct bootstrap_node *next;    /* pointer to next bootstrap node */
+};
+
+struct bootstrap {
+    int state;                      /* bootstrap state */
+    struct bootstrap_node *nodes;   /* list of bootstrap nodes */
+    int numnodes;                   /* number of bootstrap nodes */
+    time_t start_time;              /* time when bootstrap started */
+    time_t end_time;                /* time when bootstrap ended */
+    time_t next_time;               /* time of next bootstrap iteration */
 };
 
 /* The maximum number of peers we store for a given hash. */
@@ -213,12 +235,35 @@ struct peer {
 #define DHT_SEARCH_RETRANSMIT 10
 #endif
 
-struct storage {
-    unsigned char id[20];
-    int numpeers, maxpeers;
-    struct peer *peers;
-    struct storage *next;
-};
+/* Interval in seconds between bootstrap iterations. */
+#ifndef DHT_BOOTSTRAP_INTERVAL
+#define DHT_BOOTSTRAP_INTERVAL 3
+#endif
+
+/* Number of good nodes bootstrap should yield. */
+#ifndef DHT_BOOTSTRAP_GOOD_TARGET
+#define DHT_BOOTSTRAP_GOOD_TARGET 50
+#endif
+
+/* Maximum number of dubious nodes during bootstrap. */
+#ifndef DHT_BOOTSTRAP_MAX_DUBIOUS
+#define DHT_BOOTSTRAP_MAX_DUBIOUS 50
+#endif
+
+/* Maximum number of find_nodes sent per iteration. */
+#ifndef DHT_BOOTSTRAP_MAX_FINDS
+#define DHT_BOOTSTRAP_MAX_FINDS 5
+#endif
+
+/* Maximum number of pings sent per iteration. */
+#ifndef DHT_BOOTSTRAP_MAX_PINGS
+#define DHT_BOOTSTRAP_MAX_PINGS 10
+#endif
+
+/* Number of nodes we expect to receive for each find_node sent.*/
+#ifndef DHT_BOOTSTRAP_EXPECTED_NODES
+#define DHT_BOOTSTRAP_EXPECTED_NODES 8
+#endif
 
 static struct storage * find_storage(const unsigned char *id);
 static void flush_search_node(struct search_node *n, struct search *sr);
@@ -254,8 +299,12 @@ static int send_error(const struct sockaddr *sa, int salen,
                       unsigned char *tid, int tid_len,
                       int code, const char *message);
 
-static void
-add_search_node(const unsigned char *id, const struct sockaddr *sa, int salen);
+static void add_search_node(const unsigned char *id, const struct sockaddr *sa,
+                            int salen);
+
+static void bootstrap_update_timer();
+static void bootstrap_switch_state(int af, int state, dht_main_callback_t *callback, void *closure);
+static void bootstrap_periodic(int af, dht_main_callback_t *callback, void *closure);
 
 #define ERROR 0
 #define REPLY 1
@@ -309,6 +358,7 @@ static int dht_socket6 = -1;
 static time_t search_time;
 static time_t confirm_nodes_time;
 static time_t rotate_secrets_time;
+static time_t bootstrap_time = 0 ;      /* time of next bootstrap iteration */
 
 static unsigned char myid[20];
 static int have_v = 0;
@@ -324,6 +374,13 @@ static int numstorage;
 static struct search *searches = NULL;
 static int numsearches;
 static unsigned short search_id;
+
+static struct bootstrap bootstrap = {
+    DHT_BOOTSTRAP_STATE_DISABLED, NULL, 0, 0, 0, 0
+};
+static struct bootstrap bootstrap6 = {
+    DHT_BOOTSTRAP_STATE_DISABLED, NULL, 0, 0, 0, 0
+};
 
 /* The maximum number of nodes that we snub.  There is probably little
    reason to increase this value. */
@@ -693,6 +750,25 @@ find_node(const unsigned char *id, int af)
         n = n->next;
     }
     return NULL;
+}
+
+/* Return a random bucket. */
+static struct bucket *
+random_bucket(struct bucket *root_bucket, int numbuckets)
+{
+    struct bucket *b = root_bucket;
+    int count = numbuckets;
+    int bn;
+
+    if(count == 0)
+        return NULL;
+
+    bn = random() % count;
+    while(bn > 0 && b) {
+        b = b->next;
+        bn--;
+    }
+    return b;
 }
 
 /* Return a random node in a bucket. */
@@ -1072,28 +1148,31 @@ new_node(const unsigned char *id, const struct sockaddr *sa, int salen,
     }
 
     if(b->count >= b->max_count) {
-        /* Bucket full.  Ping a dubious node */
+        /* Bucket full.  Ping a dubious node, but only if not bootstrapping. */
         int dubious = 0;
-        n = b->nodes;
-        while(n) {
-            /* Pick the first dubious node that we haven't pinged in the
-               last 15 seconds.  This gives nodes the time to reply, but
-               tends to concentrate on the same nodes, so that we get rid
-               of bad nodes fast. */
-            if(!node_good(n)) {
-                dubious = 1;
-                if(n->pinged_time < now.tv_sec - 15) {
-                    unsigned char tid[4];
-                    debugf("Sending ping to dubious node %s", sa_to_str((struct sockaddr*)&n->ss));
-                    make_tid(tid, "pn", 0);
-                    send_ping((struct sockaddr*)&n->ss, n->sslen,
-                              tid, 4);
-                    n->pinged++;
-                    n->pinged_time = now.tv_sec;
-                    break;
+        int bss = (sa->sa_family == AF_INET ? bootstrap.state : bootstrap6.state);
+        if(bss < DHT_BOOTSTRAP_STATE_ENABLED) {
+            n = b->nodes;
+            while(n) {
+                /* Pick the first dubious node that we haven't pinged in the
+                last 15 seconds.  This gives nodes the time to reply, but
+                tends to concentrate on the same nodes, so that we get rid
+                of bad nodes fast. */
+                if(!node_good(n)) {
+                    dubious = 1;
+                    if(n->pinged_time < now.tv_sec - 15) {
+                        unsigned char tid[4];
+                        debugf("Sending ping to dubious node %s", sa_to_str((struct sockaddr*)&n->ss));
+                        make_tid(tid, "pn", 0);
+                        send_ping((struct sockaddr*)&n->ss, n->sslen,
+                                tid, 4);
+                        n->pinged++;
+                        n->pinged_time = now.tv_sec;
+                        break;
+                    }
                 }
+                n = n->next;
             }
-            n = n->next;
         }
 
         if(mybucket && !dubious) {
@@ -1846,7 +1925,7 @@ dht_nodes(int af, int *good_return, int *dubious_return, int *cached_return,
 static void
 dump_buckets(int af)
 {
-    struct bucket *b = (af == AF_INET ? buckets : buckets6 );
+    struct bucket *b = (af == AF_INET ? buckets : buckets6);
     if(!b) {
         infof("\n");
         infof("No %s buckets to dump", af_to_ivs(af));
@@ -1884,6 +1963,31 @@ dump_buckets(int af)
         }
         b = b->next;
         bi++;
+    }
+}
+
+static void
+dump_bootstrap_nodes(int af)
+{
+    struct bootstrap_node *bn = (af == AF_INET ? bootstrap.nodes : bootstrap6.nodes);
+    if(!bn) {
+        infof("\n");
+        infof("No %s bootstrap nodes to dump", af_to_ivs(af));
+        return;
+    }
+
+    infof("\n");
+    infof("Bootstrap nodes (%s):", af_to_ivs(af));
+    const char *fmt_header = (af == AF_INET ? "   %-4s %-21s" :
+                                              "   %-4s %-47s");
+    const char *fmt_entry  = (af == AF_INET ? "   %-4i %-21s" :
+                                              "   %-4i %-47s");
+    infof(fmt_header, "Node", "IP-Address");
+    int bni = 0;
+    while(bn) {
+        infof(fmt_entry, bni, sa_to_str((struct sockaddr*)&bn->ss));
+        bn = bn->next;
+        bni++;
     }
 }
 
@@ -1967,6 +2071,10 @@ dht_dump_tables()
         sti++;
     }
 
+    /* Dump bootstrap nodes. */
+    dump_bootstrap_nodes(AF_INET);
+    dump_bootstrap_nodes(AF_INET6);
+
     infof("\n");
 }
 
@@ -2013,6 +2121,20 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
     } else {
         have_v = 0;
     }
+
+    bootstrap.state = DHT_BOOTSTRAP_STATE_DISABLED;
+    bootstrap.nodes = NULL;
+    bootstrap.numnodes = 0;
+    bootstrap.start_time = 0;
+    bootstrap.end_time = 0;
+    bootstrap.next_time = 0;
+    bootstrap6.state = DHT_BOOTSTRAP_STATE_DISABLED;
+    bootstrap6.nodes = NULL;
+    bootstrap6.numnodes = 0;
+    bootstrap6.start_time = 0;
+    bootstrap6.end_time = 0;
+    bootstrap6.next_time = 0;
+    bootstrap_time = 0;
 
     dht_gettimeofday(&now, NULL);
 
@@ -2098,6 +2220,17 @@ dht_uninit()
         free(sr);
     }
 
+    while(bootstrap.nodes) {
+        struct bootstrap_node *bn = bootstrap.nodes;
+        bootstrap.nodes = bootstrap.nodes->next;
+        free(bn);
+    }
+    while(bootstrap6.nodes) {
+        struct bootstrap_node *bn = bootstrap6.nodes;
+        bootstrap6.nodes = bootstrap6.nodes->next;
+        free(bn);
+    }
+
     return 1;
 }
 
@@ -2122,6 +2255,11 @@ token_bucket(void)
 static int
 neighbourhood_maintenance(int af)
 {
+    /* When bootstrapping, don't do any neighborhood maintenance. */
+    int bss = (af == AF_INET ? bootstrap.state : bootstrap6.state);
+    if(bss >= DHT_BOOTSTRAP_STATE_ENABLED)
+        return 0;
+
     unsigned char id[20];
     struct bucket *b = find_bucket(myid, af);
     struct bucket *q;
@@ -2144,8 +2282,8 @@ neighbourhood_maintenance(int af)
 
     if(q) {
         /* Since our node-id is the same in both DHTs, it's probably
-           profitable to query both families. */
-        int want = dht_socket >= 0 && dht_socket6 >= 0 ? (WANT4 | WANT6) : -1;
+           profitable to query both families, but only if not bootstrapping. */
+        int want = dht_socket >= 0 && dht_socket6 >= 0 && bootstrap_time <= 0 ? (WANT4 | WANT6) : -1;
         n = random_node(q);
         if(n) {
             unsigned char tid[4];
@@ -2165,10 +2303,12 @@ neighbourhood_maintenance(int af)
 static int
 bucket_maintenance(int af)
 {
-    struct bucket *b;
+    /* When bootstrapping, don't do any bucket maintenance. */
+    int bss = (af == AF_INET ? bootstrap.state : bootstrap6.state);
+    if(bss >= DHT_BOOTSTRAP_STATE_ENABLED)
+        return 0;
 
-    b = af == AF_INET ? buckets : buckets6;
-
+    struct bucket *b = (af == AF_INET ? buckets : buckets6);
     while(b) {
         /* 10 minutes for an 8-node bucket */
         int to = MAX(600 / (b->max_count / 8), 30);
@@ -2204,7 +2344,9 @@ bucket_maintenance(int af)
                     unsigned char tid[4];
                     int want = -1;
 
-                    if(dht_socket >= 0 && dht_socket6 >= 0) {
+                    /* Only consider querying both address families if currently
+                       not bootstrapping. */
+                    if(dht_socket >= 0 && dht_socket6 >= 0 && bootstrap_time <= 0) {
                         struct bucket *otherbucket;
                         otherbucket =
                             find_bucket(id, af == AF_INET ? AF_INET6 : AF_INET);
@@ -2571,6 +2713,19 @@ dht_periodic(const void *buf, size_t buflen,
             *tosleep = 0;
         else if(*tosleep > search_time - now.tv_sec)
             *tosleep = search_time - now.tv_sec;
+    }
+
+    /* Bootstrap. */
+    if(bootstrap_time > 0 && now.tv_sec >= bootstrap_time) {
+        bootstrap_periodic(AF_INET, callback, closure);
+        bootstrap_periodic(AF_INET6, callback, closure);
+        bootstrap_update_timer();
+    }
+    if(bootstrap_time > 0) {
+        if(bootstrap_time <= now.tv_sec)
+            *tosleep = 0;
+        else if(*tosleep > bootstrap_time - now.tv_sec)
+            *tosleep = bootstrap_time - now.tv_sec;
     }
 
     return 1;
@@ -3290,4 +3445,293 @@ parse_message(const unsigned char *buf, int buflen,
  overflow:
     warnf("Encountered unexpected end of message while parsing message");
     return -1;
+}
+
+/* Add bootstrap node. */
+int
+dht_add_bootstrap_node(const struct sockaddr* sa, int salen)
+{
+    if(sa == NULL || salen <= 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    if(sa->sa_family != AF_INET && sa->sa_family != AF_INET6) {
+        errno = EAFNOSUPPORT;
+        return -1;
+    }
+
+    /* Find end of bootstrap node list, check if node already exists. */
+    struct bootstrap *bs = (sa->sa_family == AF_INET ? &bootstrap : &bootstrap6);
+    struct bootstrap_node *bn = bs->nodes;
+    while(bn) {
+        if(bn->sslen == salen && memcmp(&bn->ss, sa, salen) == 0) {
+            warnf("Unable to add %s bootstrap node %s, already added", af_to_ivs(sa->sa_family), sa_to_str(sa));
+            return 0;
+        }
+        if(bn->next == NULL)
+            break;
+        bn = bn->next;
+    }
+
+    /* Create new bootstrap node. */
+    debugf("Adding %s bootstrap node %s", af_to_ivs(sa->sa_family), sa_to_str(sa));
+    struct bootstrap_node *new_bn = calloc(1, sizeof(struct bootstrap_node));
+    if(new_bn == NULL)
+        return -1;
+    memcpy(&new_bn->ss, sa, salen);
+    new_bn->sslen = salen;
+    new_bn->next = NULL;
+    bs->numnodes++;
+
+    /* Append new bootstrap node. */
+    if(bn == NULL)
+        bs->nodes = new_bn;
+    else
+        bn->next = new_bn;
+
+    return 1;
+}
+
+/* Enable/disable bootstrap. */
+int
+dht_enable_bootstrap(int af, int enabled)
+{
+    /* Sanity checks. */
+    if(af != AF_INET && af != AF_INET6) {
+        errno = EAFNOSUPPORT;
+        return -1;
+    }
+
+    /* Pointer to bootstrap data. */
+    struct bootstrap *bs = (af == AF_INET ? &bootstrap : &bootstrap6);
+
+    /* Disable bootstrap. */
+    if(!enabled) {
+        infof("Disabling %s bootstrap", af_to_ivs(af));
+        bs->state = DHT_BOOTSTRAP_STATE_DISABLED;
+        bs->start_time = 0;
+        bs->end_time = 0;
+        bs->next_time = 0;
+        bootstrap_update_timer();
+        return 1;
+    }
+
+    /* Address family enabled? */
+    int socket = (af == AF_INET ? dht_socket : dht_socket6);
+    if(socket < 0) {
+        errorf("Unable to enable %s bootstrap, %s is not enabled", af_to_ivs(af), af_to_ivs(af));
+        bs->state = DHT_BOOTSTRAP_STATE_DISABLED;
+        bs->start_time = 0;
+        bs->end_time = 0;
+        bs->next_time = 0;
+        bootstrap_update_timer();
+        return 0;
+    }
+
+    /* Bootstrap necessary (may happen if saved state was loaded)? */
+    int numgood = 0;
+    dht_stats(af, NULL, &numgood, NULL, NULL);
+    if(numgood >= DHT_BOOTSTRAP_GOOD_TARGET) {
+        infof("No %s bootstrap necessary, bootstrap complete (good nodes: %i, target: %i)", af_to_ivs(af), numgood, DHT_BOOTSTRAP_GOOD_TARGET);
+        bs->state = DHT_BOOTSTRAP_STATE_COMPLETE;
+        bs->start_time = now.tv_sec;
+        bs->end_time = now.tv_sec;
+        bs->next_time = 0;
+        bootstrap_update_timer();
+        return 1;
+    }
+
+    /* Bootstrap nodes available? */
+    if(bs->nodes == NULL) {
+        errorf("Unable to enable %s bootstrap, no %s bootstrap nodes available", af_to_ivs(af), af_to_ivs(af));
+        bs->state = DHT_BOOTSTRAP_STATE_DISABLED;
+        bs->start_time = 0;
+        bs->end_time = 0;
+        bs->next_time = 0;
+        bootstrap_update_timer();
+        return 0;
+    }
+
+    /* Enable bootstrap. */
+    infof("Enabling %s bootstrap", af_to_ivs(af));
+    bs->state = DHT_BOOTSTRAP_STATE_ENABLED;
+    bs->start_time = 0;
+    bs->end_time = 0;
+    bs->next_time = now.tv_sec;
+    bootstrap_update_timer();
+    return 1;
+}
+
+/* Get bootstrap state. */
+int
+dht_bootstrap_state(int af)
+{
+    if(af != AF_INET && af != AF_INET6) {
+        errno = EAFNOSUPPORT;
+        return -1;
+    }
+
+    return (af == AF_INET ? bootstrap.state : bootstrap6.state);
+}
+
+/* Update bootstrap timer. */
+static void
+bootstrap_update_timer()
+{
+    bootstrap_time = (bootstrap.next_time > bootstrap6.next_time ? bootstrap.next_time : bootstrap6.next_time);
+}
+
+/* Switch bootstrap state. */
+static void
+bootstrap_switch_state(int af, int state, dht_main_callback_t *callback, void *closure)
+{
+    if(af == AF_INET) {
+        bootstrap.state = state;
+        if(callback)
+            (*callback)(closure, DHT_EVENT_BOOTSTRAP, NULL, &bootstrap.state, sizeof(bootstrap.state));
+    } else {
+        bootstrap6.state = state;
+        if(callback)
+            (*callback)(closure, DHT_EVENT_BOOTSTRAP6, NULL, &bootstrap6.state, sizeof(bootstrap6.state));
+    }
+}
+
+/* Perform bootstrap (called by dht_periodic). */
+static void
+bootstrap_periodic(int af, dht_main_callback_t *callback, void *closure)
+{
+    struct bootstrap *bs = (af == AF_INET ? &bootstrap : &bootstrap6);
+    int numbuckets, numgood, numdubious, numtotal;
+    unsigned char id[20];
+
+
+    /* If bootstrap is enabled ... */
+    if(bs->state == DHT_BOOTSTRAP_STATE_ENABLED) {
+
+        /* ... start it now. */
+        infof("Starting %s bootstrap (%i bootstrap nodes)", af_to_ivs(af), bs->numnodes);
+        bs->start_time = now.tv_sec;
+
+        /* Add bootstrap nodes to routing table using fake ids (myid, first
+           bit flipped, last 4 bytes randomized). */
+        memcpy(id, myid, 20);
+        id[0] ^= 0x80;
+        for(struct bootstrap_node *bn = bs->nodes; bn != NULL; bn = bn->next) {
+            dht_random_bytes(&id[16], 4);
+            debugf("Adding bootstrap node %s with id %s", sa_to_str((struct sockaddr*)&bn->ss), id_to_hex(id));
+            new_node(id, (struct sockaddr*)&bn->ss, bn->sslen, 0);
+        }
+
+        /* Get and print initial stats. */
+        dht_stats(af, &numbuckets, &numgood, &numdubious, &numtotal);
+        infof("%s bootstrap started: buckets: %i, good: %i, dubious: %i, total: %i, time: %lis", af_to_ivs(af), numbuckets, numgood, numdubious, numtotal, now.tv_sec - bs->start_time);
+
+        /* Switch state. */
+        bootstrap_switch_state(af, DHT_BOOTSTRAP_STATE_RUNNING, callback, closure);
+        bs->next_time = now.tv_sec;
+        return;
+
+
+    /* If bootstrap is running ... */
+    } else if(bs->state == DHT_BOOTSTRAP_STATE_RUNNING) {
+
+        /* ... check if it should be stopped ... */
+        dht_stats(af, &numbuckets, &numgood, &numdubious, &numtotal);
+
+        /* Bootstrap complete? */
+        if(numgood >= DHT_BOOTSTRAP_GOOD_TARGET) {
+            bs->end_time = now.tv_sec;
+            infof("%s bootstrap complete: buckets: %i, good: %i, dubious: %i, total: %i, time: %lis", af_to_ivs(af), numbuckets, numgood, numdubious, numtotal, bs->end_time - bs->start_time);
+            bootstrap_switch_state(af, DHT_BOOTSTRAP_STATE_COMPLETE, callback, closure);
+            bs->next_time = 0;
+            confirm_nodes_time = 0;     /* trigger bucket/neighborhood maintenance. */
+            return;
+        }
+
+        /* Bootstrap failure? */
+        if(numtotal <= 0) {
+            bs->end_time = now.tv_sec;
+            warnf("%s bootstrap failed, no %s nodes available (buckets: %i, good: %i, dubious: %i, total: %i, time: %lis)", af_to_ivs(af), af_to_ivs(af), numbuckets, numgood, numdubious, numtotal, bs->end_time - bs->start_time);
+            bootstrap_switch_state(af, DHT_BOOTSTRAP_STATE_FAILED, callback, closure);
+            bs->next_time = 0;
+            return;
+        }
+
+        /* ... otherwise perform bootstrap / keep bootstrapping. */
+        struct bucket *rb = (af == AF_INET ? buckets : buckets6);
+        int finds = 0, pings = 0;
+
+        /* Purge unresponsive nodes. */
+        expire_buckets(rb);
+
+        /* Get and print current stats. */
+        dht_stats(af, &numbuckets, &numgood, &numdubious, &numtotal);
+        infof("%s bootstrap status: buckets: %i, good: %i, dubious: %i, total: %i, time: %lis", af_to_ivs(af), numbuckets, numgood, numdubious, numtotal, now.tv_sec - bs->start_time);
+
+        /* Copy myid for find_node. */
+        memcpy(id, myid, 20);
+
+        /* Randomly process buckets. The loop is run twice as long to account
+           for collisions caused by random_bucket(). */
+        for(int i = 0; i < numbuckets*2; i++) {
+            struct bucket *b = random_bucket(rb, numbuckets);
+            if(b == NULL) {
+                errorf("oops random bucket?!");
+                return;
+            }
+
+            /* Randomly process nodes of current bucket. The loop is run twice
+               as long to account for collisions caused by random_node(). */
+            for(int j = 0; j < b->count*2; j++) {
+                struct node *n = random_node(b);
+                if(n == NULL) {
+                    errorf("oops random node?!");
+                    return;
+                }
+
+                /* If node is good and we can handle more dubious nodes, send
+                   find_node. If node is dubious, send ping to turn it into a
+                   good node. */
+                if(node_good(n)) {
+                    if(finds < DHT_BOOTSTRAP_MAX_FINDS && numdubious < DHT_BOOTSTRAP_MAX_DUBIOUS && n->pinged_time < now.tv_sec - 15) {
+                        id[19] = random() & 0xFF;
+                        unsigned char tid[4];
+                        make_tid(tid, "fn", 0);
+                        debugf("   Sending find_node for id %s to node %s", id_to_hex(id), sa_to_str((struct sockaddr*)&n->ss));
+                        send_find_node((struct sockaddr*)&n->ss, n->sslen,
+                                        tid, 4, id, -1,
+                                        n->reply_time >= now.tv_sec - 15);
+                        n->pinged++;
+                        n->pinged_time = now.tv_sec;
+                        numdubious += DHT_BOOTSTRAP_EXPECTED_NODES; /* projection; keeps us from sending out too many requests */
+                        finds++;
+                    }
+                } else {
+                    if(pings < DHT_BOOTSTRAP_MAX_PINGS && n->pinged_time < now.tv_sec - 15) {
+                        debugf("   Sending ping to dubious node %s", sa_to_str((struct sockaddr*)&n->ss));
+                        unsigned char tid[4];
+                        make_tid(tid, "pn", 0);
+                        send_ping((struct sockaddr*)&n->ss, n->sslen, tid, 4);
+                        n->pinged++;
+                        n->pinged_time = now.tv_sec;
+                        pings++;
+                    }
+                }
+
+                /* Break loop if all available nodes have been contacted or
+                   limits of finds/pings are reached. */
+                if(finds+pings >= numtotal || (finds >= DHT_BOOTSTRAP_MAX_FINDS && pings >= DHT_BOOTSTRAP_MAX_PINGS))
+                    break;
+            }
+
+            /* Break loop if all available nodes have been contacted or
+               limits of finds/pings are reached. */
+            if(finds+pings >= numtotal || (finds >= DHT_BOOTSTRAP_MAX_FINDS && pings >= DHT_BOOTSTRAP_MAX_PINGS))
+                break;
+        }
+
+        /* Schedule next bootstrap iteration. */
+        bs->next_time = now.tv_sec + DHT_BOOTSTRAP_INTERVAL;
+        return;
+    }
 }
