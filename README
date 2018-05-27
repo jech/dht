@@ -53,7 +53,7 @@ at shutdown, and restore it at restart.  You may also grab nodes from
 torrent files (the nodes field), and you may exchange contacts with other
 Bittorrent peers using the PORT extension.
 
-* dht_ping
+* dht_ping_node
 
 This is the main bootstrapping primitive.  You pass it an address at which
 you believe that a DHT node may be living, and a query will be sent.  If
