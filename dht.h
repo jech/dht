@@ -25,35 +25,48 @@ extern "C" {
 #endif
 
 typedef void
-dht_callback_t(void *closure, int event,
-               const unsigned char *info_hash,
-               const void *data, size_t data_len);
+dht_main_callback_t(void *closure, int event,
+                    const unsigned char *info_hash,
+                    const void *data, size_t data_len);
 
-#define DHT_EVENT_NONE 0
-#define DHT_EVENT_VALUES 1
-#define DHT_EVENT_VALUES6 2
-#define DHT_EVENT_SEARCH_DONE 3
+#define DHT_EVENT_NONE         0
+#define DHT_EVENT_VALUES       1
+#define DHT_EVENT_VALUES6      2
+#define DHT_EVENT_SEARCH_DONE  3
 #define DHT_EVENT_SEARCH_DONE6 4
 
-extern FILE *dht_debug;
+typedef void
+dht_log_callback_t(const struct timeval *time, int type,
+                   const char *format, va_list ap);
 
+#define DHT_LOG_TYPE_DEBUG 0
+#define DHT_LOG_TYPE_INFO  1
+#define DHT_LOG_TYPE_WARN  2
+#define DHT_LOG_TYPE_ERROR 3
+
+void dht_set_log_callback(dht_log_callback_t *callback);
+
+/* Provided by library. */
 int dht_init(int s, int s6, const unsigned char *id, const unsigned char *v);
 int dht_insert_node(const unsigned char *id, struct sockaddr *sa, int salen);
 int dht_ping_node(const struct sockaddr *sa, int salen);
 int dht_periodic(const void *buf, size_t buflen,
                  const struct sockaddr *from, int fromlen, time_t *tosleep,
-                 dht_callback_t *callback, void *closure);
+                 dht_main_callback_t *callback, void *closure);
 int dht_search(const unsigned char *id, int port, int af,
-               dht_callback_t *callback, void *closure);
+               dht_main_callback_t *callback, void *closure);
+int dht_stats(int af, int *numbuckets, int *numgood, int *numdubious, int *numtotal);
 int dht_nodes(int af,
               int *good_return, int *dubious_return, int *cached_return,
               int *incoming_return);
-void dht_dump_tables(FILE *f);
+void dht_dump_tables();
 int dht_get_nodes(struct sockaddr_in *sin, int *num,
                   struct sockaddr_in6 *sin6, int *num6);
+int dht_save_state(void **buffer, size_t *buflen);
+int dht_load_state(void *buffer, size_t buflen);
 int dht_uninit(void);
 
-/* This must be provided by the user. */
+/* Provided by user. */
 int dht_sendto(int sockfd, const void *buf, int len, int flags,
                const struct sockaddr *to, int tolen);
 int dht_blacklisted(const struct sockaddr *sa, int salen);
