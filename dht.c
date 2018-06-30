@@ -1779,7 +1779,7 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
     numstorage = 0;
 
     if(s >= 0) {
-        buckets = calloc(sizeof(struct bucket), 1);
+        buckets = calloc(1, sizeof(struct bucket));
         if(buckets == NULL)
             return -1;
         buckets->max_count = 128;
@@ -1787,7 +1787,7 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
     }
 
     if(s6 >= 0) {
-        buckets6 = calloc(sizeof(struct bucket), 1);
+        buckets6 = calloc(1, sizeof(struct bucket));
         if(buckets6 == NULL)
             return -1;
         buckets6->max_count = 128;
@@ -2437,7 +2437,7 @@ dht_insert_node(const unsigned char *id, struct sockaddr *sa, int salen)
 {
     struct node *n;
 
-    if(sa->sa_family != AF_INET) {
+    if(sa->sa_family != AF_INET && sa->sa_family != AF_INET6) {
         errno = EAFNOSUPPORT;
         return -1;
     }
