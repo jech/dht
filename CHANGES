@@ -1,5 +1,7 @@
 dht-0.26 (unreleased):
 
+  * Fixed a bug introduced in 0.25 that prevented replying to find_nodes
+    when want was not set.
   * Rename dht_callback to dht_callback_t.  This is an incompatible change.
 
 9 February 2018: dht-0.25

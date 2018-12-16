@@ -2713,7 +2713,7 @@ send_closest_nodes(const struct sockaddr *sa, int salen,
     int numnodes = 0, numnodes6 = 0;
     struct bucket *b;
 
-    if(want < 0)
+    if(want <= 0)
         want = sa->sa_family == AF_INET ? WANT4 : WANT6;
 
     if((want & WANT4)) {
