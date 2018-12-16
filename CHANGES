@@ -1,4 +1,4 @@
-dht-0.26 (unreleased):
+16 December 2018: dht-0.26
 
   * Fixed a bug introduced in 0.25 that prevented replying to find_nodes
     when want was not set.
