@@ -293,6 +293,8 @@ struct parsed_message {
     unsigned char values6[PARSE_VALUES6_LEN];
     unsigned short values6_len;
     unsigned short want;
+    unsigned char ip[18];
+    unsigned short ip_len;
 };
 
 static int parse_message(const unsigned char *buf, int buflen,
@@ -3040,6 +3042,18 @@ parse_message(const unsigned char *buf, int buflen,
         }
         if(i >= buflen || buf[i] != 'e')
             debugf("eek... unexpected end for want.\n");
+    }
+
+    p = dht_memmem(buf, buflen, "2:ip", 4);
+    if(p) {
+        long l;
+        char *q;
+        l = strtol((char*)p + 4, &q, 10);
+        if(q && *q == ':' && l > 0 && l <= 18) {
+            CHECK(q + 1, l);
+            memcpy(m->ip, q + 1, l);
+            m->ip_len = l;
+        }
     }
 
 #undef CHECK
