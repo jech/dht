@@ -213,6 +213,10 @@ struct peer {
 #define DHT_SEARCH_RETRANSMIT 10
 #endif
 
+#ifndef DHT_BEP42_ENFORCE
+#define DHT_BEP42_ENFORCE 0
+#endif
+
 struct storage {
     unsigned char id[20];
     int numpeers, maxpeers;
@@ -454,6 +458,16 @@ compute_prefix(const unsigned char *id, const struct sockaddr *sa)
     }
 
     return crc;
+}
+
+static int
+is_prefix_valid(const unsigned char *id, const struct sockaddr *sa)
+{
+    uint32_t prefix = compute_prefix(id, sa);
+
+    return id[0] == (prefix >> 24) &&
+           id[1] == ((prefix >> 16) & 0xff) &&
+           (id[2] & 0xf8) == ((prefix >> 8) & 0xf8);
 }
 
 FILE *dht_debug = NULL;
@@ -2299,7 +2313,11 @@ dht_periodic(const void *buf, size_t buflen,
                            another request. */
                         search_send_get_peers(sr, NULL);
                 }
+#if DHT_BEP42_ENFORCE > 0
+                if(sr && is_prefix_valid(m.id, from)) {
+#else
                 if(sr) {
+#endif
                     insert_search_node(m.id, from, fromlen, sr,
                                        1, m.token, m.token_len);
                     if(m.values_len > 0 || m.values6_len > 0) {
