@@ -317,6 +317,9 @@ static int have_v = 0;
 static unsigned char my_v[9];
 static unsigned char secret[8];
 static unsigned char oldsecret[8];
+static struct sockaddr_storage my_addr;
+static int my_addr_len;
+static unsigned int my_addr_votes = 0;
 
 static struct bucket *buckets = NULL;
 static struct bucket *buckets6 = NULL;
@@ -2189,6 +2192,40 @@ dht_periodic(const void *buf, size_t buflen,
 
         switch(message) {
         case REPLY:
+            if(m.ip_len == 6 || m.ip_len == 18) {
+                struct sockaddr_storage ss;
+                int sslen;
+                if (m.ip_len == 6) {
+                    struct sockaddr_in *sin = (struct sockaddr_in *)&ss;
+                    sin->sin_family = AF_INET;
+                    memcpy(&sin->sin_addr, m.ip, 4);
+                    memcpy(&sin->sin_port, m.ip + 4, 2);
+                    sslen = sizeof(*sin);
+                } else if (m.ip_len == 18) {
+                    struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&ss;
+                    sin6->sin6_family = AF_INET6;
+                    memcpy(&sin6->sin6_addr, m.ip, 16);
+                    memcpy(&sin6->sin6_port, m.ip + 16, 2);
+                    sslen = sizeof(*sin6);
+                }
+                if (!my_addr_votes) {
+                    memcpy(&my_addr, &ss, sslen);
+                    my_addr_len = sslen;
+                    my_addr_votes++;
+                } else if (my_addr_len == sslen &&
+                           !memcmp(&my_addr, &ss, sslen)) {
+                    if (my_addr_votes == 10) {
+                        uint32_t prefix = compute_prefix(myid,
+                                (struct sockaddr *)&my_addr);
+                        myid[0] = prefix >> 24;
+                        myid[1] = (prefix >> 16) & 0xff;
+                        myid[2] = ((prefix >> 8) & 0xf8) | (myid[2] & 0x7);
+                        my_addr_votes = 0;
+                    } else
+                        my_addr_votes++;
+                } else
+                    my_addr_votes--;
+            }
             if(m.tid_len != 4) {
                 debugf("Broken node truncates transaction ids: ");
                 debug_printable(buf, buflen);
