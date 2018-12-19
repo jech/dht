@@ -2644,7 +2644,21 @@ send_pong(const struct sockaddr *sa, int salen,
 {
     char buf[512];
     int i = 0, rc;
-    rc = snprintf(buf + i, 512 - i, "d1:rd2:id20:"); INC(i, rc, 512);
+    rc = snprintf(buf + i, 512 - i, "d2:ip"); INC(i, rc, 512);
+    if (sa->sa_family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in*)sa;
+        rc = snprintf(buf + i, 512 - i, "6:"); INC(i, rc, 512);
+        COPY(buf, i, &sin->sin_addr, 4, 512);
+        COPY(buf, i, &sin->sin_port, 2, 512);
+    } else if (sa->sa_family == AF_INET6) {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6*)sa;
+        rc = snprintf(buf + i, 512 - i, "18:"); INC(i, rc, 512);
+        COPY(buf, i, &sin6->sin6_addr, 16, 512);
+        COPY(buf, i, &sin6->sin6_port, 2, 512);
+    } else {
+        abort();
+    }
+    rc = snprintf(buf + i, 512 - i, "1:rd2:id20:"); INC(i, rc, 512);
     COPY(buf, i, myid, 20, 512);
     rc = snprintf(buf + i, 512 - i, "e1:t%d:", tid_len); INC(i, rc, 512);
     COPY(buf, i, tid, tid_len, 512);
@@ -2697,7 +2711,21 @@ send_nodes_peers(const struct sockaddr *sa, int salen,
     char buf[2048];
     int i = 0, rc, j0, j, k, len;
 
-    rc = snprintf(buf + i, 2048 - i, "d1:rd2:id20:"); INC(i, rc, 2048);
+    rc = snprintf(buf + i, 2048 - i, "d2:ip"); INC(i, rc, 2048);
+    if (sa->sa_family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in*)sa;
+        rc = snprintf(buf + i, 2048 - i, "6:"); INC(i, rc, 2048);
+        COPY(buf, i, &sin->sin_addr, 4, 2048);
+        COPY(buf, i, &sin->sin_port, 2, 2048);
+    } else if (sa->sa_family == AF_INET6) {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6*)sa;
+        rc = snprintf(buf + i, 2048 - i, "18:"); INC(i, rc, 2048);
+        COPY(buf, i, &sin6->sin6_addr, 16, 2048);
+        COPY(buf, i, &sin6->sin6_port, 2, 2048);
+    } else {
+        abort();
+    }
+    rc = snprintf(buf + i, 2048 - i, "1:rd2:id20:"); INC(i, rc, 2048);
     COPY(buf, i, myid, 20, 2048);
     if(nodes_len > 0) {
         rc = snprintf(buf + i, 2048 - i, "5:nodes%d:", nodes_len);
@@ -2927,7 +2955,21 @@ send_peer_announced(const struct sockaddr *sa, int salen,
     char buf[512];
     int i = 0, rc;
 
-    rc = snprintf(buf + i, 512 - i, "d1:rd2:id20:"); INC(i, rc, 512);
+    rc = snprintf(buf + i, 512 - i, "d2:ip"); INC(i, rc, 512);
+    if (sa->sa_family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in*)sa;
+        rc = snprintf(buf + i, 512 - i, "6:"); INC(i, rc, 512);
+        COPY(buf, i, &sin->sin_addr, 4, 512);
+        COPY(buf, i, &sin->sin_port, 2, 512);
+    } else if (sa->sa_family == AF_INET6) {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6*)sa;
+        rc = snprintf(buf + i, 512 - i, "18:"); INC(i, rc, 512);
+        COPY(buf, i, &sin6->sin6_addr, 16, 512);
+        COPY(buf, i, &sin6->sin6_port, 2, 512);
+    } else {
+        abort();
+    }
+    rc = snprintf(buf + i, 512 - i, "1:rd2:id20:"); INC(i, rc, 512);
     COPY(buf, i, myid, 20, 512);
     rc = snprintf(buf + i, 512 - i, "e1:t%d:", tid_len);
     INC(i, rc, 512);
