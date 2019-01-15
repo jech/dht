@@ -1294,8 +1294,8 @@ new_search(void)
         }
     }
 
-    /* Oh, well, never mind.  Reuse the oldest slot. */
-    return oldest;
+    /* No available slots found, return NULL. */
+    return NULL;
 }
 
 /* Insert the contents of a bucket into a search structure. */
