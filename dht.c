@@ -1294,8 +1294,8 @@ new_search(void)
         }
     }
 
-    /* Return oldest search if it's done. */
-    if(oldest->done)
+    /* Return oldest slot if it's done. */
+    if(oldest && oldest->done)
         return oldest;
 
     /* No available slots found, return NULL. */
