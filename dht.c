@@ -1843,7 +1843,7 @@ dht_init(int s, int s6, const unsigned char *id, const unsigned char *v)
 }
 
 int
-dht_uninit()
+dht_uninit(void)
 {
     if(dht_socket < 0 && dht_socket6 < 0) {
         errno = EINVAL;
