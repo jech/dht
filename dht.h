@@ -49,8 +49,8 @@ int dht_nodes(int af,
               int *good_return, int *dubious_return, int *cached_return,
               int *incoming_return);
 void dht_dump_tables(FILE *f);
-int dht_get_nodes(struct sockaddr_in *sin, int *num,
-                  struct sockaddr_in6 *sin6, int *num6);
+int dht_get_nodes(struct sockaddr_in *sin, unsigned char* id, int *num,
+                  struct sockaddr_in6 *sin6, unsigned char* id6, int *num6);
 int dht_uninit(void);
 
 /* This must be provided by the user. */
