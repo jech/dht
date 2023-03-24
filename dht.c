@@ -328,7 +328,7 @@ static unsigned short search_id;
 /* The maximum number of nodes that we snub.  There is probably little
    reason to increase this value. */
 #ifndef DHT_MAX_BLACKLISTED
-#define DHT_MAX_BLACKLISTED 10
+#define DHT_MAX_BLACKLISTED 32
 #endif
 static struct sockaddr_storage blacklist[DHT_MAX_BLACKLISTED];
 int next_blacklisted;
@@ -2155,19 +2155,33 @@ dht_periodic(const void *buf, size_t buflen,
                         search_send_get_peers(sr, NULL);
                 }
                 if(sr) {
-                    insert_search_node(m.id, from, fromlen, sr,
-                                       1, m.token, m.token_len);
-                    if(m.values_len > 0 || m.values6_len > 0) {
-                        debugf("Got values (%d+%d)!\n",
-                               m.values_len / 6, m.values6_len / 18);
-                        if(callback) {
-                            if(m.values_len > 0)
-                                (*callback)(closure, DHT_EVENT_VALUES, sr->id,
-                                            (void*)m.values, m.values_len);
+                    /* Only accept values from nodes that have not lied about
+                       their id */
+                    int i;
+                    for(i = 0; i < sr->numnodes; i++) {
+                        if (fromlen == sr->nodes[i].sslen &&
+                            !memcmp(from, &sr->nodes[i].ss, fromlen) &&
+                            id_cmp(m.id, sr->nodes[i].id) != 0) {
+                            flush_search_node(&sr->nodes[i], sr);
+                            blacklist_node(NULL, from, fromlen);
+                            break;
+                        }
+                    }
+                    if (i == sr->numnodes) {
+                        insert_search_node(m.id, from, fromlen, sr,
+                                           1, m.token, m.token_len);
+                        if(m.values_len > 0 || m.values6_len > 0) {
+                            debugf("Got values (%d+%d)!\n",
+                                   m.values_len / 6, m.values6_len / 18);
+                            if(callback) {
+                                if(m.values_len > 0)
+                                    (*callback)(closure, DHT_EVENT_VALUES, sr->id,
+                                                (void*)m.values, m.values_len);
 
-                            if(m.values6_len > 0)
-                                (*callback)(closure, DHT_EVENT_VALUES6, sr->id,
-                                            (void*)m.values6, m.values6_len);
+                                if(m.values6_len > 0)
+                                    (*callback)(closure, DHT_EVENT_VALUES6, sr->id,
+                                                (void*)m.values6, m.values6_len);
+                            }
                         }
                     }
                 }
