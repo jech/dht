@@ -2318,17 +2318,17 @@ dht_periodic(const void *buf, size_t buflen,
     }
 
     if(now.tv_sec >= confirm_nodes_time) {
-        int soon = 0;
+        int soon, soon4, soon6;
 
-        soon |= bucket_maintenance(AF_INET);
-        soon |= bucket_maintenance(AF_INET6);
+        soon4 = bucket_maintenance(AF_INET);
+        soon6 = bucket_maintenance(AF_INET6);
 
-        if(!soon) {
-            if(mybucket_grow_time >= now.tv_sec - 150)
-                soon |= neighbourhood_maintenance(AF_INET);
-            if(mybucket6_grow_time >= now.tv_sec - 150)
-                soon |= neighbourhood_maintenance(AF_INET6);
-        }
+        if(!soon4 && mybucket_grow_time >= now.tv_sec - 150)
+            soon4 |= neighbourhood_maintenance(AF_INET);
+        if(!soon6 && mybucket6_grow_time >= now.tv_sec - 150)
+            soon6 |= neighbourhood_maintenance(AF_INET6);
+
+        soon = soon4 | soon6;
 
         /* Given the timeouts in bucket_maintenance, with a 22-bucket
            table, worst case is a ping every 18 seconds (22 buckets plus
