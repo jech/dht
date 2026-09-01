@@ -1243,7 +1243,7 @@ search_step(struct search *sr, dht_callback_t *callback, void *closure)
         return;
     }
 
-    if(sr->step_time + DHT_SEARCH_RETRANSMIT >= now.tv_sec)
+    if(sr->step_time + DHT_SEARCH_RETRANSMIT > now.tv_sec)
         return;
 
     j = 0;
