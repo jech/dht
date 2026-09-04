@@ -2320,6 +2320,8 @@ dht_periodic(const void *buf, size_t buflen,
     if(now.tv_sec >= confirm_nodes_time) {
         int soon, soon4, soon6;
 
+        /* We distinguish IPv4 and IPv6, so that an empty IPv6 bucket does
+           not starve IPv4 neighborhood maintenance. */
         soon4 = bucket_maintenance(AF_INET);
         soon6 = bucket_maintenance(AF_INET6);
 
